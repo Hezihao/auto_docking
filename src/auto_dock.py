@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
+import time
 import numpy as np
 import tf2_ros
 import tf2_geometry_msgs
@@ -17,6 +18,7 @@ class docking:
 		self.kp_y = 1.5
 		self.kp_theta = 0.5
 		self.state = 1
+		self.start = time.time()
 		self.marker_observed = False
 		self.base_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
@@ -60,6 +62,7 @@ class docking:
 				marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
 				marker_corrected.pose.position = marker_in_map.pose.position
 				self.marker_pose_calibrated = marker_corrected
+				#print(self.marker_pose_calibrated)
 				
 	def calculate_diff(self):
 
@@ -73,7 +76,7 @@ class docking:
 		self.base_marker_diff.header.frame_id = 'map'
 		self.base_marker_diff.pose.position.x = self.marker_pose_calibrated.pose.position.x - self.base_pose.pose.position.x
 		self.base_marker_diff.pose.position.y = self.marker_pose_calibrated.pose.position.y - self.base_pose.pose.position.y
-		print(self.base_marker_diff.pose.position.x, self.base_marker_diff.pose.position.y+0.8)
+		#print(self.base_marker_diff.pose.position.x, self.base_marker_diff.pose.position.y)
 		map_to_base.transform.translation = Vector3()
 		self.base_marker_diff = tf2_geometry_msgs.do_transform_pose(self.base_marker_diff, map_to_base)
 		# using trigonometry to solve new w and z
@@ -86,13 +89,14 @@ class docking:
 		self.diff_x = self.base_marker_diff.pose.position.x
 		self.diff_y = self.base_marker_diff.pose.position.y
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
+		#print(self.diff_x, self.diff_y, self.diff_theta)
 		#self.marker_observed = False
 
 	def auto_docking(self):
 		vel = Twist()
 		#print(self.base_marker_diff)
 		# calculate the velocity needed for docking
-		if(abs(self.diff_x) < 0.80):
+		if(abs(self.diff_x) < 0.90):
 			vel.linear.x = 0
 		else:
 			vel.linear.x = self.kp_x * self.diff_x
@@ -110,13 +114,10 @@ class docking:
 		
 		self.vel_pub.publish(vel)
 		self.state = vel.linear.x + vel.linear.y + vel.angular.z
-		if(self.state == 0): 
+		if(self.state == 0 or (time.time() - self.start) > 15): 
+			self.state = 0
 			print(self.diff_x - 0.8, self.diff_y, self.diff_theta)
 			print("Docking done.")
-		return self.state
-
-
-
 
 if __name__ == '__main__':
 	my_docking = docking()
