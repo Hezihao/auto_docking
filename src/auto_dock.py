@@ -19,7 +19,7 @@ class docking:
 		self.kp_theta = 0.5
 		self.state = 1
 		self.start = time.time()
-		self.marker_observed = False
+		self.docking_finished = False
 		self.base_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		self.base_marker_diff = PoseStamped()
@@ -42,9 +42,8 @@ class docking:
 		for mkr in ar_markers.markers:
 			if(mkr.id == 10):
 				# read pose data of the predefined marker
-				self.marker_observed = True
-				marker_pose = mkr.pose
-				marker_pose.header.frame_id = 'camera_link'
+				self.marker_pose = mkr.pose
+				self.marker_pose.header.frame_id = 'camera_link'
 				# correct the published orientation of marker
 				# in convinience of calculating the error of orientation between marker & base_link
 				transform = self.tf_buffer.lookup_transform('map', 'camera_link', rospy.Time(0), rospy.Duration(1.0))
@@ -58,14 +57,14 @@ class docking:
 				marker_correction.transform.rotation.z = 0
 				marker_correction.transform.rotation.w = 0.707
 				# do calibration
-				marker_in_map = tf2_geometry_msgs.do_transform_pose(marker_pose, transform)
+				marker_in_map = tf2_geometry_msgs.do_transform_pose(self.marker_pose, transform)
 				marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
 				marker_corrected.pose.position = marker_in_map.pose.position
 				self.marker_pose_calibrated = marker_corrected
-				#print(self.marker_pose_calibrated)
 				
 	def calculate_diff(self):
 
+		# remove the error due to displacement between map-frame and odom-frame
 		map_to_base = self.tf_buffer.lookup_transform('base_link', 'map', rospy.Time(0), rospy.Duration(1.0))
 		odom_map_diff = self.tf_buffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(1.0))
 		self.ar_pose_corrected_pub.publish(self.marker_pose_calibrated)
@@ -76,53 +75,69 @@ class docking:
 		self.base_marker_diff.header.frame_id = 'map'
 		self.base_marker_diff.pose.position.x = self.marker_pose_calibrated.pose.position.x - self.base_pose.pose.position.x
 		self.base_marker_diff.pose.position.y = self.marker_pose_calibrated.pose.position.y - self.base_pose.pose.position.y
-		#print(self.base_marker_diff.pose.position.x, self.base_marker_diff.pose.position.y)
 		map_to_base.transform.translation = Vector3()
 		self.base_marker_diff = tf2_geometry_msgs.do_transform_pose(self.base_marker_diff, map_to_base)
-		# using trigonometry to solve new w and z
-		#self.base_marker_diff.pose.orientation.z = self.marker_pose_calibrated.pose.orientation.z * self.base_pose.pose.orientation.w - self.marker_pose_calibrated.pose.orientation.w * self.base_pose.pose.orientation.z
-
-		#self.base_marker_diff.pose.orientation.w = self.marker_pose_calibrated.pose.orientation.w * self.base_pose.pose.orientation.w + self.marker_pose_calibrated.pose.orientation.z * self.base_pose.pose.orientation.z
 		marker_pose_calibrated_euler = euler_from_quaternion([self.marker_pose_calibrated.pose.orientation.x, self.marker_pose_calibrated.pose.orientation.y, self.marker_pose_calibrated.pose.orientation.z, self.marker_pose_calibrated.pose.orientation.w])
 		base_pose_euler = euler_from_quaternion([self.base_pose.pose.orientation.x, self.base_pose.pose.orientation.y, self.base_pose.pose.orientation.z, self.base_pose.pose.orientation.w])
 		# calculate the difference
 		self.diff_x = self.base_marker_diff.pose.position.x
 		self.diff_y = self.base_marker_diff.pose.position.y
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
-		#print(self.diff_x, self.diff_y, self.diff_theta)
-		#self.marker_observed = False
 
 	def auto_docking(self):
-		vel = Twist()
+		self.vel = Twist()
 		#print(self.base_marker_diff)
 		# calculate the velocity needed for docking
-		if(abs(self.diff_x) < 0.90):
-			vel.linear.x = 0
+		time_waited = time.time() - self.start
+		if(abs(self.diff_x) < 0.90 or time_waited > 20):
+			self.vel.linear.x = 0
 		else:
-			vel.linear.x = self.kp_x * self.diff_x
-		if(abs(self.diff_y) < 0.005):
-			vel.linear.y = 0
+			self.vel.linear.x = self.kp_x * self.diff_x
+		if(abs(self.diff_y) < 0.005 or time_waited > 20):
+			self.vel.linear.y = 0
 		else:
-			vel.linear.y = self.kp_y * self.diff_y
-		if(abs(np.degrees(self.diff_theta)) < 0.03):
-			vel.angular.z = 0
+			self.vel.linear.y = self.kp_y * self.diff_y
+		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 20):
+			self.vel.angular.z = 0
 		elif(abs(self.diff_theta) > 45):
 			# the max. acceptable angle
-			vel.angular.z = 0.005
+			self.vel.angular.z = 0.005
 		else:
-			vel.angular.z = self.kp_theta * self.diff_theta
-		
+			self.vel.angular.z = self.kp_theta * self.diff_theta
+		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
+		if(self.state == 0): 
+			print("Visual servo started.")
+			self.visual_servo()
+		else:
+			self.vel_pub.publish(self.vel)
+
+
+	def visual_servo(self):
+		kp_x = 1.0
+		kp_y = 3.0
+		vel = Twist()
+
+		if(abs(self.marker_pose.pose.position.y) > 0.005):
+			vel.linear.y = kp_y * self.marker_pose.pose.position.y + 0.01
+			vel.linear.x = 0
+		else:
+			vel.linear.y = 0
+			if(self.marker_pose.pose.position.x - 0.53 > 0.008):
+				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.5) + 0.06	# the offset to compensate intern friction
+																						# should be different on real platform
+			else:
+				vel.linear.x = 0
+				vel.linear.y = 0
 		self.vel_pub.publish(vel)
-		self.state = vel.linear.x + vel.linear.y + vel.angular.z
-		if(self.state == 0 or (time.time() - self.start) > 15): 
-			self.state = 0
-			print(self.diff_x - 0.8, self.diff_y, self.diff_theta)
+		if(not (vel.linear.x + vel.linear.y)):
+			self.docking_finished = True
 			print("Docking done.")
+
 
 if __name__ == '__main__':
 	my_docking = docking()
-	while(not rospy.is_shutdown()):
-		if(my_docking.state and my_docking.marker_pose_calibrated.pose.position.x):
+	while(not rospy.is_shutdown() and not(my_docking.docking_finished)):
+		if(my_docking.marker_pose_calibrated.pose.position.x):
 			my_docking.calculate_diff()
 			my_docking.auto_docking()
 		my_docking.rate.sleep()
