@@ -29,7 +29,7 @@ class docking:
 
 		# initializing node, subscribers, publishers and servcer
 		rospy.init_node('auto_docking')
-		self.rate = rospy.Rate(5)
+		self.rate = rospy.Rate(15)
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		odom_sub = rospy.Subscriber('odom', Odometry, self.odom_callback)
@@ -111,7 +111,7 @@ class docking:
 			self.vel.linear.y = self.kp_y * self.diff_y
 			if abs(self.vel.linear.y) < 0.10:
 				self.vel.linear.y = 0.10 * np.sign(self.vel.linear.y)
-		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 30):
+		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 25):
 			self.vel.angular.z = 0
 		# filter out shakes from AR tracking
 		elif(abs(self.diff_theta) > 45):
@@ -123,6 +123,7 @@ class docking:
 		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
 		print(self.vel)
 		self.vel_pub.publish(self.vel)
+		print(time_waited)
 		# check if the process is done
 		if(self.state == 0): 
 			print("start visual servo.")
@@ -137,7 +138,7 @@ class docking:
 		vel = Twist()
 		# in case the 2nd docking process failed
 		time_visual = time.time() - self.start
-		if(time_visual > 10):
+		if(time_visual > 15):
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
@@ -149,8 +150,9 @@ class docking:
 		else:
 			vel.linear.y = 0
 			if(self.marker_pose.pose.position.x - 0.54 > 0.008):
-				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.5) + 0.06	# the offset to compensate intern friction
-																						# should be different on real platform
+				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.5)
+				if(vel.linear.x < 0.2):
+					vel.linear.x = 0.2
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
