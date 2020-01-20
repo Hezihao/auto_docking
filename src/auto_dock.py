@@ -8,36 +8,44 @@ import tf2_geometry_msgs
 from tf.transformations import euler_from_quaternion
 
 from nav_msgs.msg import Odometry
+from neo_charger.srv import auto_docking
 from ar_track_alvar_msgs.msg import AlvarMarkers
 from geometry_msgs.msg import TransformStamped, PoseStamped, Vector3, Twist
 
 class docking:
 
+	# initialization
 	def __init__(self):
+		# initial values of parameters
 		self.kp_x = 0.3
 		self.kp_y = 1.5
 		self.kp_theta = 0.5
 		self.state = 1
-		self.start = time.time()
-		self.docking_finished = False
+		self.start = 0
+		self.SERVICE_CALLED = False
 		self.base_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		self.base_marker_diff = PoseStamped()
 
+		# initializing node, subscribers, publishers and servcer
 		rospy.init_node('auto_docking')
 		self.rate = rospy.Rate(50)
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		odom_sub = rospy.Subscriber('odom', Odometry, self.odom_callback)
 		marker_pose_sub = rospy.Subscriber('ar_pose_marker', AlvarMarkers, self.marker_pose_calibration)
+		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
+		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 		self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
-		rospy.loginfo("Auto docking...")
 
+	# callback function of odom_sub
 	def odom_callback(self, odom):
+		# restore measured odom info from nav_msgs/Odometry into geometry_msgs/PoseStamped format
 		self.base_pose.header = odom.header
 		self.base_pose.pose = odom.pose.pose
 
+	# transform measured marker pose into something comparable with robot coordinate system
 	def marker_pose_calibration(self, ar_markers):
 		for mkr in ar_markers.markers:
 			if(mkr.id == 10):
@@ -61,7 +69,8 @@ class docking:
 				marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
 				marker_corrected.pose.position = marker_in_map.pose.position
 				self.marker_pose_calibrated = marker_corrected
-				
+	
+	# calculating displacement between marker and robot			
 	def calculate_diff(self):
 
 		# remove the error due to displacement between map-frame and odom-frame
@@ -84,9 +93,9 @@ class docking:
 		self.diff_y = self.base_marker_diff.pose.position.y
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
 
+	# execute the first phase of docking process
 	def auto_docking(self):
 		self.vel = Twist()
-		#print(self.base_marker_diff)
 		# calculate the velocity needed for docking
 		time_waited = time.time() - self.start
 		if(abs(self.diff_x) < 0.90 or time_waited > 20):
@@ -99,45 +108,56 @@ class docking:
 			self.vel.linear.y = self.kp_y * self.diff_y
 		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 20):
 			self.vel.angular.z = 0
+		# filter out shakes from AR tracking
 		elif(abs(self.diff_theta) > 45):
-			# the max. acceptable angle
 			self.vel.angular.z = 0.005
 		else:
 			self.vel.angular.z = self.kp_theta * self.diff_theta
 		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
+		# check if the process is done
 		if(self.state == 0): 
-			print("Visual servo started.")
 			self.visual_servo()
 		else:
 			self.vel_pub.publish(self.vel)
 
-
+	# second phase of docking, directly using image
 	def visual_servo(self):
 		kp_x = 1.0
 		kp_y = 3.0
 		vel = Twist()
-
+		# won't adjust vel.linear.x and vel.linear.y at the same time,
+		# to avoid causing hardware damage
 		if(abs(self.marker_pose.pose.position.y) > 0.005):
 			vel.linear.y = kp_y * self.marker_pose.pose.position.y + 0.01
 			vel.linear.x = 0
 		else:
 			vel.linear.y = 0
-			if(self.marker_pose.pose.position.x - 0.53 > 0.008):
+			if(self.marker_pose.pose.position.x - 0.54 > 0.008):
 				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.5) + 0.06	# the offset to compensate intern friction
 																						# should be different on real platform
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
 		self.vel_pub.publish(vel)
+		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
-			self.docking_finished = True
-			print("Docking done.")
+			self.SERVICE_CALLED = False
+			print("Connection established.")
 
+	# the callback function of service auto_docking
+	def service_callback(self, auto_docking):
+		self.SERVICE_CALLED = True
+		self.start = time.time()
+		print("Service request received.")
+		return "Service requested."
 
 if __name__ == '__main__':
 	my_docking = docking()
-	while(not rospy.is_shutdown() and not(my_docking.docking_finished)):
-		if(my_docking.marker_pose_calibrated.pose.position.x):
-			my_docking.calculate_diff()
-			my_docking.auto_docking()
+	while(not rospy.is_shutdown()):
+		# start docking when service is called
+		if(my_docking.SERVICE_CALLED):
+			# make sure marker is detected
+			if(my_docking.marker_pose_calibrated.pose.position.x):
+				my_docking.calculate_diff()
+				my_docking.auto_docking()
 		my_docking.rate.sleep()
