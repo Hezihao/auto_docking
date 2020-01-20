@@ -29,7 +29,7 @@ class docking:
 
 		# initializing node, subscribers, publishers and servcer
 		rospy.init_node('auto_docking')
-		self.rate = rospy.Rate(50)
+		self.rate = rospy.Rate(5)
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		odom_sub = rospy.Subscriber('odom', Odometry, self.odom_callback)
@@ -69,6 +69,7 @@ class docking:
 				marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
 				marker_corrected.pose.position = marker_in_map.pose.position
 				self.marker_pose_calibrated = marker_corrected
+				#self.ar_pose_corrected_pub.publish(self.marker_pose)
 	
 	# calculating displacement between marker and robot			
 	def calculate_diff(self):
@@ -92,13 +93,15 @@ class docking:
 		self.diff_x = self.base_marker_diff.pose.position.x
 		self.diff_y = self.base_marker_diff.pose.position.y
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
+		print(self.diff_x, self.diff_y, self.diff_theta)
 
 	# execute the first phase of docking process
 	def auto_docking(self):
 		self.vel = Twist()
 		# calculate the velocity needed for docking
 		time_waited = time.time() - self.start
-		if(abs(self.diff_x) < 0.90 or time_waited > 20):
+		# reset timer if the visual servo failed
+		if(abs(self.diff_x) < 0.85 or time_waited > 20):
 			self.vel.linear.x = 0
 		else:
 			self.vel.linear.x = self.kp_x * self.diff_x
@@ -106,29 +109,42 @@ class docking:
 			self.vel.linear.y = 0
 		else:
 			self.vel.linear.y = self.kp_y * self.diff_y
-		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 20):
+			if abs(self.vel.linear.y) < 0.10:
+				self.vel.linear.y = 0.10 * np.sign(self.vel.linear.y)
+		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 30):
 			self.vel.angular.z = 0
 		# filter out shakes from AR tracking
 		elif(abs(self.diff_theta) > 45):
 			self.vel.angular.z = 0.005
 		else:
 			self.vel.angular.z = self.kp_theta * self.diff_theta
+			if(abs(self.vel.angular.z) < 0.02):
+				self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
 		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
+		print(self.vel)
+		self.vel_pub.publish(self.vel)
 		# check if the process is done
 		if(self.state == 0): 
+			print("start visual servo.")
 			self.visual_servo()
-		else:
-			self.vel_pub.publish(self.vel)
+			pass
+		
 
 	# second phase of docking, directly using image
 	def visual_servo(self):
 		kp_x = 1.0
 		kp_y = 3.0
 		vel = Twist()
+		# in case the 2nd docking process failed
+		time_visual = time.time() - self.start
+		if(time_visual > 10):
+			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
-		if(abs(self.marker_pose.pose.position.y) > 0.005):
-			vel.linear.y = kp_y * self.marker_pose.pose.position.y + 0.01
+		if(abs(self.marker_pose.pose.position.y) > 0.004):
+			vel.linear.y = kp_y * self.marker_pose.pose.position.y + 0.02
+			if abs(vel.linear.y) < 0.10:
+				vel.linear.y = 0.10 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
 			vel.linear.y = 0
