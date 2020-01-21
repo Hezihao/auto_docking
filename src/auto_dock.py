@@ -111,11 +111,11 @@ class docking:
 			self.vel.linear.y = self.kp_y * self.diff_y
 			if abs(self.vel.linear.y) < 0.10:
 				self.vel.linear.y = 0.10 * np.sign(self.vel.linear.y)
-		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 25):
+		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 30):
 			self.vel.angular.z = 0
 		# filter out shakes from AR tracking
-		elif(abs(self.diff_theta) > 45):
-			self.vel.angular.z = 0.005
+		elif(abs(np.degrees(self.diff_theta)) > 45):
+			self.vel.angular.z = 0.005 * np.sign(self.diff_theta)
 		else:
 			self.vel.angular.z = self.kp_theta * self.diff_theta
 			if(abs(self.vel.angular.z) < 0.02):
@@ -128,8 +128,6 @@ class docking:
 		if(self.state == 0): 
 			print("start visual servo.")
 			self.visual_servo()
-			pass
-		
 
 	# second phase of docking, directly using image
 	def visual_servo(self):
@@ -137,15 +135,14 @@ class docking:
 		kp_y = 3.0
 		vel = Twist()
 		# in case the 2nd docking process failed
-		time_visual = time.time() - self.start
-		if(time_visual > 15):
+		if(abs(np.degrees(self.diff_theta) > 5)):
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
-		if(abs(self.marker_pose.pose.position.y) > 0.004):
-			vel.linear.y = kp_y * self.marker_pose.pose.position.y + 0.02
+		if(abs(self.marker_pose.pose.position.y) > 0.005):
+			vel.linear.y = kp_y * self.marker_pose.pose.position.y
 			if abs(vel.linear.y) < 0.10:
-				vel.linear.y = 0.10 * np.sign(vel.linear.y)
+				vel.linear.y = 0.15 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
 			vel.linear.y = 0
