@@ -109,21 +109,21 @@ class docking:
 			self.vel.linear.y = 0
 		else:
 			self.vel.linear.y = self.kp_y * self.diff_y
-			if abs(self.vel.linear.y) < 0.10:
-				self.vel.linear.y = 0.10 * np.sign(self.vel.linear.y)
+			if abs(self.vel.linear.y) < 0.15:
+				self.vel.linear.y = 0.15 * np.sign(self.vel.linear.y)
 		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 30):
 			self.vel.angular.z = 0
 		# filter out shakes from AR tracking
-		elif(abs(np.degrees(self.diff_theta)) > 45):
+		elif(abs(np.degrees(self.diff_theta)) > 65):
 			self.vel.angular.z = 0.005 * np.sign(self.diff_theta)
 		else:
 			self.vel.angular.z = self.kp_theta * self.diff_theta
 			if(abs(self.vel.angular.z) < 0.02):
 				self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
 		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
-		print(self.vel)
+		#print(self.vel)
 		self.vel_pub.publish(self.vel)
-		print(time_waited)
+		#print(time_waited)
 		# check if the process is done
 		if(self.state == 0): 
 			print("start visual servo.")
@@ -131,7 +131,7 @@ class docking:
 
 	# second phase of docking, directly using image
 	def visual_servo(self):
-		kp_x = 1.0
+		kp_x = 0.5
 		kp_y = 3.0
 		vel = Twist()
 		# in case the 2nd docking process failed
@@ -141,19 +141,20 @@ class docking:
 		# to avoid causing hardware damage
 		if(abs(self.marker_pose.pose.position.y) > 0.005):
 			vel.linear.y = kp_y * self.marker_pose.pose.position.y
-			if abs(vel.linear.y) < 0.10:
+			if abs(vel.linear.y) < 0.15:
 				vel.linear.y = 0.15 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
 			vel.linear.y = 0
 			if(self.marker_pose.pose.position.x - 0.54 > 0.008):
-				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.5)
-				if(vel.linear.x < 0.2):
-					vel.linear.x = 0.2
+				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.54)
+				if(vel.linear.x < 0.15):
+					vel.linear.x = 0.15
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
 		self.vel_pub.publish(vel)
+		print(vel)
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
 			self.SERVICE_CALLED = False
