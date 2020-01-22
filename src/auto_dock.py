@@ -5,7 +5,7 @@ import time
 import numpy as np
 import tf2_ros
 import tf2_geometry_msgs
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 from nav_msgs.msg import Odometry
 from neo_charger.srv import auto_docking
@@ -45,6 +45,53 @@ class docking:
 		self.base_pose.header = odom.header
 		self.base_pose.pose = odom.pose.pose
 
+	# for test
+	def mat_from_euler(self, euler):
+		alpha = euler[0]
+		beta = euler[1]
+		gamma = euler[2]
+		sa = np.sin(alpha)		# wrt x-axis
+		ca = np.cos(alpha)
+		sb = np.sin(beta)		# wrt y-axis
+		cb = np.cos(beta)
+		sr = np.sin(gamma)		# wrt z-axis
+		cr = np.cos(gamma)
+		mat = [[cb*cr, sa*sb*cr - ca*sr, ca*sb*cr + sa*sr], [cb*sr, sa*sb*sr + ca*cr, ca*sb*sr - sa*cr], [-sb, sa*cb, ca*cb]]
+		return mat
+
+	def euler_from_mat(self, mat):
+		'''
+		theta = np.arcsin(-mat[2][0])				# euler angle of y-axis
+		phi	= np.arcsin(mat[2][1]/np.cos(theta))	# euler angle of x-axis
+		psi = np.arccos(mat[0][0]/np.cos(theta))	# euler angle of z-axis
+		#psi = np.sign(np.arcsin())
+		#psi = np.arcsin(mat[1][0]/np.cos(theta))
+		'''
+		'''
+		sin_theta = -mat[2][0]
+		theta_1 = np.arcsin(sin_theta)
+		theta_2 = np.pi - theta_1
+		sin_phi_1 = mat[2][1]/np.cos(theta_1)
+		sin_phi_2 = mat[2][1]/np.cos(theta_2)
+		tan_phi = mat[2][1]/mat[2][2]
+		if(np.arctan(tan_phi)<0):
+			phi = int(np.arcsin(sin_phi_1)==np.arctan(tan_phi))*np.arctan(tan_phi) +
+				  int(np.pi - np.arcsin(sin_phi_1)==np.arctan(tan_phi))*np.arctan(tan_phi) +
+				  int(np.arcsin(sin_phi_1)==(np.pi + np.arctan(tan_phi)))*(np.pi + np.arctan(tan_phi)) +
+				  int(np.pi - np.arcsin(sin_phi_1)==(np.pi + np.arctan(tan_phi)))*(np.pi + np.arctan(tan_phi))
+		else:
+			phi = int(np.arcsin(sin_phi_1)==np.arctan(tan_phi))*np.arctan(tan_phi) +
+				  int(np.pi - np.arcsin(sin_phi_1)==np.arctan(tan_phi))*np.arctan(tan_phi) +
+				  int(np.arcsin(sin_phi_1)==(np.arctan(tan_phi)-np.pi))*(np.arctan(tan_phi)-np.pi) +
+				  int(np.pi - np.arcsin(sin_phi_1)==(np.arctan(tan_phi)-np.pi))*(np.arctan(tan_phi)-np.pi)
+		cos_theta = mat[0][0]/np.cos(phi)
+		theta = int(np.arccos(theta)==theta_1 or int(-np.arccos(theta)==theta_1))*theta_1 + 
+				int(np.arccos(theta)==theta_2 or int(-np.arccos(theta)==theta_2))*theta_2
+		'''
+		
+
+		return [phi, theta, -psi]
+
 	# transform measured marker pose into something comparable with robot coordinate system
 	def marker_pose_calibration(self, ar_markers):
 		for mkr in ar_markers.markers:
@@ -55,25 +102,52 @@ class docking:
 				# correct the published orientation of marker
 				# in convinience of calculating the error of orientation between marker & base_link
 				transform = self.tf_buffer.lookup_transform('map', 'camera_link', rospy.Time(0), rospy.Duration(1.0))
-				# rotate the coordinate system of marker
+				# do calibration
+				marker_in_map = tf2_geometry_msgs.do_transform_pose(self.marker_pose, transform)
+				# testing: do the rotation with euler rotation matrix
+				marker_in_map_euler = euler_from_quaternion([marker_in_map.pose.orientation.x, marker_in_map.pose.orientation.y, marker_in_map.pose.orientation.z, marker_in_map.pose.orientation.w])
+				marker_in_map_mat = self.mat_from_euler(marker_in_map_euler)
+				y_axis_of_map = [[0], [1], [0]]
+				axis_of_correction = np.dot(marker_in_map_mat, y_axis_of_map)
+				correction_quaternion = np.zeros(4)
+				correction_quaternion[0] = np.sin(0.785398)*axis_of_correction[0]
+				correction_quaternion[1] = np.sin(0.785398)*axis_of_correction[1]
+				correction_quaternion[2] = np.sin(0.785398)*axis_of_correction[2]
+				correction_quaternion[3] = np.cos(0.785398)
+				# calculate transformation with rotation matrix
+				'''
+				correction_euler = euler_from_quaternion(correction_quaternion)
+				correction_mat = self.mat_from_euler(correction_euler)
+				marker_corrected_mat = np.dot(correction_mat, marker_in_map_mat)
+				marker_corrected_euler = self.euler_from_mat(marker_corrected_mat)
+				print(marker_corrected_euler)
+				marker_corrected_quaternion = quaternion_from_euler(marker_corrected_euler[0], marker_corrected_euler[1], marker_corrected_euler[2])
+				'''
+				# calculate transformation with built-in function
 				marker_correction = TransformStamped()
 				marker_correction.header.stamp = rospy.Time.now()
 				marker_correction.header.frame_id = 'map'
-				marker_correction.child_frame_id = 'ar_marker_10'
-				marker_correction.transform.rotation.x = 0.707
-				marker_correction.transform.rotation.y = 0
-				marker_correction.transform.rotation.z = 0
-				marker_correction.transform.rotation.w = 0.707
-				# do calibration
-				marker_in_map = tf2_geometry_msgs.do_transform_pose(self.marker_pose, transform)
-				marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
+				marker_correction.transform.rotation.x = correction_quaternion[0]
+				marker_correction.transform.rotation.y = correction_quaternion[1]
+				marker_correction.transform.rotation.z = correction_quaternion[2]
+				marker_correction.transform.rotation.w = correction_quaternion[3]
+				marker_corrected_with_tf = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
+				marker_corrected_with_tf.pose.position = marker_in_map.pose.position
+				# visualization of result
+				marker_corrected = PoseStamped()
+				marker_corrected.header.stamp = rospy.Time.now()
+				marker_corrected.header.frame_id = 'map'
 				marker_corrected.pose.position = marker_in_map.pose.position
-				self.marker_pose_calibrated = marker_corrected
-				#self.ar_pose_corrected_pub.publish(self.marker_pose)
+				marker_corrected.pose.orientation.x = marker_corrected_quaternion[0]
+				marker_corrected.pose.orientation.y = marker_corrected_quaternion[1]
+				marker_corrected.pose.orientation.z = marker_corrected_quaternion[2]
+				marker_corrected.pose.orientation.w = marker_corrected_quaternion[3]
+				#marker_in_map_mat = self.mat_from_euler(marker_in_map_euler)
+				self.marker_pose_calibrated = marker_corrected_with_tf
 	
 	# calculating displacement between marker and robot			
 	def calculate_diff(self):
-
+		
 		# remove the error due to displacement between map-frame and odom-frame
 		map_to_base = self.tf_buffer.lookup_transform('base_link', 'map', rospy.Time(0), rospy.Duration(1.0))
 		odom_map_diff = self.tf_buffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(1.0))
@@ -93,7 +167,7 @@ class docking:
 		self.diff_x = self.base_marker_diff.pose.position.x
 		self.diff_y = self.base_marker_diff.pose.position.y
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
-		print(self.diff_x, self.diff_y, self.diff_theta)
+		
 
 	# execute the first phase of docking process
 	def auto_docking(self):
@@ -105,6 +179,7 @@ class docking:
 			self.vel.linear.x = 0
 		else:
 			self.vel.linear.x = self.kp_x * self.diff_x
+			pass
 		if(abs(self.diff_y) < 0.005 or time_waited > 20):
 			self.vel.linear.y = 0
 		else:
@@ -122,7 +197,7 @@ class docking:
 				self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
 		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
 		#print(self.vel)
-		self.vel_pub.publish(self.vel)
+		#self.vel_pub.publish(self.vel)
 		#print(time_waited)
 		# check if the process is done
 		if(self.state == 0): 
@@ -139,7 +214,7 @@ class docking:
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
-		if(abs(self.marker_pose.pose.position.y) > 0.005):
+		if(abs(self.marker_pose.pose.position.y) > 0.003):
 			vel.linear.y = kp_y * self.marker_pose.pose.position.y
 			if abs(vel.linear.y) < 0.15:
 				vel.linear.y = 0.15 * np.sign(vel.linear.y)
@@ -153,7 +228,7 @@ class docking:
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
-		self.vel_pub.publish(vel)
+		#self.vel_pub.publish(vel)
 		print(vel)
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
