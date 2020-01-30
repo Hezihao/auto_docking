@@ -26,7 +26,7 @@ class docking:
 		self.base_marker_diff = PoseStamped()
 		# initializing node, subscribers, publishers and servcer
 		rospy.init_node('auto_docking')
-		self.rate = rospy.Rate(30)
+		self.rate = rospy.Rate(15)
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		odom_sub = rospy.Subscriber('odom', Odometry, self.odom_callback)
@@ -123,18 +123,18 @@ class docking:
 		time_waited = time.time() - self.start
 		# drive robot to where we start the visual servo process
 		# visual servo would remove the error on x & y
-		if(abs(self.diff_x) < 0.85 or time_waited > 20):
+		if(abs(self.diff_x) < 0.85 or time_waited > 10):
 			self.vel.linear.x = 0
 		else:
 			self.vel.linear.x = self.kp_x * self.diff_x
-		if(abs(self.diff_y) < 0.005 or time_waited > 20):
+		if(abs(self.diff_y) < 0.005 or time_waited > 10):
 			self.vel.linear.y = 0
 		else:
 			self.vel.linear.y = self.kp_y * self.diff_y
 			# defining the minimal cmd_vel on y-direction
 			if abs(self.vel.linear.y) < 0.15:
 				self.vel.linear.y = 0.15 * np.sign(self.vel.linear.y)
-		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 30):
+		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 20):
 			self.vel.angular.z = 0
 		# filter out shakes from AR tracking package
 		elif(abs(np.degrees(self.diff_theta)) > 65):

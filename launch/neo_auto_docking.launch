@@ -2,5 +2,5 @@
 <launch>
 	<arg name="robot_type" default="mpo_700"/>
 	<include file="$(find neo_simulation)/launch/$(arg robot_type)/$(arg robot_type)_camera.launch" />
-	<node name="auto_docking" pkg="neo_charger" type="auto_dock.py" output="screen"/>
+	<node name="auto_docking" pkg="neo_docking" type="auto_dock.py" output="screen"/>
 </launch>
