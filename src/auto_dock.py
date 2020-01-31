@@ -59,7 +59,8 @@ class docking:
 	# transform measured marker pose into something comparable with robot coordinate system
 	def marker_pose_calibration(self, ar_markers):
 		for mkr in ar_markers.markers:
-			if(mkr.id == 10):
+			#if(mkr.id == 10):
+			if(mkr.id == 2):
 				# read pose data of the predefined marker
 				self.marker_pose = mkr.pose
 				self.marker_pose.header.frame_id = 'camera_link'
@@ -123,7 +124,7 @@ class docking:
 		time_waited = time.time() - self.start
 		# drive robot to where we start the visual servo process
 		# visual servo would remove the error on x & y
-		if(abs(self.diff_x) < 0.85 or time_waited > 10):
+		if(abs(self.diff_x) < 0.70 or time_waited > 10):
 			self.vel.linear.x = 0
 		else:
 			self.vel.linear.x = self.kp_x * self.diff_x
@@ -157,19 +158,20 @@ class docking:
 		kp_y = 3.0
 		vel = Twist()
 		# in case the 2nd docking process failed
-		if(abs(np.degrees(self.diff_theta) > 5)):
+		if(abs(np.degrees(self.diff_theta) > 5) or self.diff_y > 0.02):
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
 		if(abs(self.marker_pose.pose.position.y) > 0.003):
 			vel.linear.y = kp_y * self.marker_pose.pose.position.y
-			if abs(vel.linear.y) < 0.1:
-				vel.linear.y = 0.1 * np.sign(vel.linear.y)
+			if abs(vel.linear.y) < 0.15:
+				vel.linear.y = 0.15 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
 			vel.linear.y = 0
-			if(self.marker_pose.pose.position.x - 0.54 > 0.01):
-				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.54)
+			# correspondent: montage x = +25cm
+			if(self.marker_pose.pose.position.x - 0.30 > 0.01):
+				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.30)
 				if(vel.linear.x < 0.15):
 					vel.linear.x = 0.15
 			else:
