@@ -22,6 +22,7 @@ class docking:
 		self.start = 0
 		self.SERVICE_CALLED = False
 		self.base_pose = PoseStamped()
+		self.marker_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		self.base_marker_diff = PoseStamped()
 		# initializing node, subscribers, publishers and servcer
@@ -35,6 +36,7 @@ class docking:
 		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 		self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
+		self.ar_pose_corrected_2_pub = rospy.Publisher('ar_pose_corrected_2', PoseStamped, queue_size=1)
 
 	# callback function of odom_sub
 	def odom_callback(self, odom):
@@ -56,48 +58,68 @@ class docking:
 		mat = [[cb*cr, sa*sb*cr - ca*sr, ca*sb*cr + sa*sr], [cb*sr, sa*sb*sr + ca*cr, ca*sb*sr - sa*cr], [-sb, sa*cb, ca*cb]]
 		return mat
 
+	def do_calibration(self, marker):
+		# correct the published orientation of marker
+		# in convinience of calculating the error of orientation between marker & base_link
+		cam_to_map = self.tf_buffer.lookup_transform('map', 'camera_link', rospy.Time(0), rospy.Duration(1.0))
+		marker_in_map = tf2_geometry_msgs.do_transform_pose(marker, cam_to_map)
+		# do the rotation with euler rotation matrix
+		marker_in_map_euler = euler_from_quaternion([marker_in_map.pose.orientation.x, marker_in_map.pose.orientation.y, marker_in_map.pose.orientation.z, marker_in_map.pose.orientation.w])
+		marker_in_map_mat = self.mat_from_euler(marker_in_map_euler)
+		y_axis_of_map = [[0], [1], [0]]
+		axis_of_correction = np.dot(marker_in_map_mat, y_axis_of_map)
+		correction_quaternion = np.zeros(4)
+		correction_quaternion[0] = np.sin(0.785398)*axis_of_correction[0]
+		correction_quaternion[1] = np.sin(0.785398)*axis_of_correction[1]
+		correction_quaternion[2] = np.sin(0.785398)*axis_of_correction[2]
+		correction_quaternion[3] = np.cos(0.785398)
+		# calculate transformation with built-in function
+		marker_correction = TransformStamped()
+		marker_correction.header.stamp = rospy.Time.now()
+		marker_correction.header.frame_id = 'map'
+		marker_correction.transform.rotation.x = correction_quaternion[0]
+		marker_correction.transform.rotation.y = correction_quaternion[1]
+		marker_correction.transform.rotation.z = correction_quaternion[2]
+		marker_correction.transform.rotation.w = correction_quaternion[3]
+		marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
+		marker_corrected.pose.position = marker_in_map.pose.position
+		return marker_corrected
+
 	# transform measured marker pose into something comparable with robot coordinate system
 	def marker_pose_calibration(self, ar_markers):
+		main_marker_pose_vec = []
+		minor_marker_pose_vec = []
 		for mkr in ar_markers.markers:
-			#if(mkr.id == 10):
-			if(mkr.id == 2):
-				# read pose data of the predefined marker
-				self.marker_pose = mkr.pose
-				self.marker_pose.header.frame_id = 'camera_link'
-				# correct the published orientation of marker
-				# in convinience of calculating the error of orientation between marker & base_link
-				transform = self.tf_buffer.lookup_transform('map', 'camera_link', rospy.Time(0), rospy.Duration(1.0))
-				# do calibration
-				marker_in_map = tf2_geometry_msgs.do_transform_pose(self.marker_pose, transform)
-				# do the rotation with euler rotation matrix
-				marker_in_map_euler = euler_from_quaternion([marker_in_map.pose.orientation.x, marker_in_map.pose.orientation.y, marker_in_map.pose.orientation.z, marker_in_map.pose.orientation.w])
-				marker_in_map_mat = self.mat_from_euler(marker_in_map_euler)
-				y_axis_of_map = [[0], [1], [0]]
-				axis_of_correction = np.dot(marker_in_map_mat, y_axis_of_map)
-				correction_quaternion = np.zeros(4)
-				correction_quaternion[0] = np.sin(0.785398)*axis_of_correction[0]
-				correction_quaternion[1] = np.sin(0.785398)*axis_of_correction[1]
-				correction_quaternion[2] = np.sin(0.785398)*axis_of_correction[2]
-				correction_quaternion[3] = np.cos(0.785398)
-				# calculate transformation with built-in function
-				marker_correction = TransformStamped()
-				marker_correction.header.stamp = rospy.Time.now()
-				marker_correction.header.frame_id = 'map'
-				marker_correction.transform.rotation.x = correction_quaternion[0]
-				marker_correction.transform.rotation.y = correction_quaternion[1]
-				marker_correction.transform.rotation.z = correction_quaternion[2]
-				marker_correction.transform.rotation.w = correction_quaternion[3]
-				marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
-				marker_corrected.pose.position = marker_in_map.pose.position
-				# pass the information to global
-				self.marker_pose_calibrated = marker_corrected
+			if(mkr.id == 10):
+			# read pose data of the predefined marker
+				self.main_marker_pose = mkr.pose
+				self.main_marker_pose.header.frame_id = 'camera_link'
+				main_marker_calibrated = self.do_calibration(self.main_marker_pose)
+				main_marker_pose_vec = [main_marker_calibrated.pose.position.x, main_marker_calibrated.pose.position.y, main_marker_calibrated.pose.position.z, 
+										main_marker_calibrated.pose.orientation.x, main_marker_calibrated.pose.orientation.y, main_marker_calibrated.pose.orientation.z, main_marker_calibrated.pose.orientation.w]
+				#self.ar_pose_corrected_pub.publish(main_marker_corrected)
+			elif(mkr.id == 9):
+				self.minor_marker_pose = mkr.pose
+				self.minor_marker_pose.header.frame_id = 'camera_link'
+				minor_marker_calibrated = self.do_calibration(self.minor_marker_pose)
+				minor_marker_pose_vec = [minor_marker_calibrated.pose.position.x, minor_marker_calibrated.pose.position.y, minor_marker_calibrated.pose.position.z, 
+										minor_marker_calibrated.pose.orientation.x, minor_marker_calibrated.pose.orientation.y, minor_marker_calibrated.pose.orientation.z, minor_marker_calibrated.pose.orientation.w]
+				#self.ar_pose_corrected_2_pub.publish(minor_marker_corrected)
+		if(main_marker_pose_vec and np.shape(main_marker_pose_vec)==np.shape(minor_marker_pose_vec)):
+			marker_pose_fusion_vec = np.add(main_marker_pose_vec, minor_marker_pose_vec)/2
+			self.marker_pose_calibrated = main_marker_calibrated
+			self.marker_pose_calibrated.pose.position.x = marker_pose_fusion_vec[0]
+			self.marker_pose_calibrated.pose.position.y = marker_pose_fusion_vec[1]
+			self.marker_pose_calibrated.pose.position.z = marker_pose_fusion_vec[2]
+			# orientation not directly appliable
+			self.ar_pose_corrected_pub.publish(self.marker_pose_calibrated)
 	
 	# calculating displacement between marker and robot			
 	def calculate_diff(self):
 		# remove the error due to displacement between map-frame and odom-frame
 		map_to_base = self.tf_buffer.lookup_transform('base_link', 'map', rospy.Time(0), rospy.Duration(1.0))
 		odom_map_diff = self.tf_buffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(1.0))
-		self.ar_pose_corrected_pub.publish(self.marker_pose_calibrated)
+		#self.ar_pose_corrected_pub.publish(self.marker_pose_calibrated)
 		# compute difference between marker and base_link
 		self.base_pose = tf2_geometry_msgs.do_transform_pose(self.base_pose, odom_map_diff)
 		self.base_pose.header.frame_id = 'map'
@@ -157,6 +179,8 @@ class docking:
 		kp_x = 0.5
 		kp_y = 3.0
 		vel = Twist()
+		self.marker_pose.pose.position.x = (self.main_marker_pose.pose.position.x + self.minor_marker_pose.pose.position.x)/2
+		self.marker_pose.pose.position.y = (self.main_marker_pose.pose.position.y + self.minor_marker_pose.pose.position.y)/2
 		# in case the 2nd docking process failed
 		if(abs(np.degrees(self.diff_theta) > 5) or self.diff_y > 0.02):
 			self.start = time.time()
