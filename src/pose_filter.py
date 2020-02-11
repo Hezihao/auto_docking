@@ -77,9 +77,8 @@ class Pose_filter:
 			# read pose data of the predefined marker
 				self.marker_pose = mkr.pose
 				self.marker_pose.header.frame_id = 'camera_link'
+				# do rotation, and remove unused information
 				self.marker_pose_calibrated = self.do_calibration(self.marker_pose)
-				# orientation not directly appliable
-				#self.filtered_pose_pub.publish(self.marker_pose_calibrated)
 '''
 	# following functions serve for temporal Sliding Window
 	# pack the PoseStamped into vector
@@ -141,6 +140,7 @@ class Pose_filter:
 if __name__ == "__main__":
 	my_filter = Pose_filter()
 	while(not rospy.is_shutdown()):
+		# if marker 27 is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x):
 			my_filter.filtered_pose_pub.publish(my_filter.marker_pose_calibrated)
 			print(my_filter.marker_pose_calibrated.pose.orientation)
