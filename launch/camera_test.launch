@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
-	<arg name="marker_size" default="8" />
+	<arg name="marker_size" default="5" />
 	<arg name="max_new_marker_error" default="0.1" />
 	<arg name="max_track_error" default="0.2" />
 	<arg name="bundle_files" default="$(find neo_docking)/bundles/multi_tag.xml" />
@@ -12,7 +12,7 @@
 	<arg name="cam_image_topic" default="/camera/depth_registered/points" />
 	<arg name="cam_info_topic" default="/camera/depth/camera_info" />
 	<arg name="output_frame" default="/camera_link" />
-	<arg name="med_filt_size" default="10" />
+	<arg name="med_filt_size" default="15" />
 	<!-->
 	<node pkg="tf" type="static_transform_publisher" name="world_frame_connection" args="0 0 0 0 0 -1.57 /camera_link /mp_700/camera_link 100"/>
 	<-->
