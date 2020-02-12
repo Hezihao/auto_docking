@@ -1,6 +1,6 @@
 # neo_charger
 
-## Package for automatic navigation to charging station.
+## Package for automatic navigation to docking station.
 
 <p align="center">
   <img src="img/example_auto_docking.png"  width=350>
