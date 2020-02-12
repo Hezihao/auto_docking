@@ -125,21 +125,7 @@ class Pose_filter:
 				s += vec[i]
 			ans.append(s/len(mat))
 		return ans
-'''
-	# callback function that filters marker's pose
-	def filter_callback(self, pose_stamped):
-		[position_vec, orient_vec] = self.vec_from_pose(pose_stamped.pose)
-		euler_vec = euler_from_quaternion(orient_vec)
-		self.position_queue.append(position_vec)
-		self.orientation_queue.append(orient_vec)
-		position_filtered_vec = self.avr(self.position_queue)
-		orient_filtered_vec = self.avr(self.orientation_queue)
-		pose_filtered = self.pose_from_vec(position_filtered_vec, orient_filtered_vec)
-		pose_filtered_pub.publish(pose_filtered)
-		if(len(self.position_queue) == 15):
-			self.position_queue.pop(0)
-			self.orientation_queue.pop(0)
-'''
+
 if __name__ == "__main__":
 	my_filter = Pose_filter()
 	position_queue = []
