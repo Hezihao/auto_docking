@@ -20,6 +20,8 @@ class Pose_filter:
 		self.orientation_queue = []
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		self.filtered_pose_pub = rospy.Publisher('ar_pose_filtered', PoseStamped, queue_size=1)
+		# for test
+		self.calibrated_pose_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
 		origin_pose_sub = rospy.Subscriber('ar_pose_marker', AlvarMarkers, self.marker_pose_calibration)
 
 	# establish the rotation matrix from euler angle
@@ -61,13 +63,14 @@ class Pose_filter:
 		marker_correction.transform.rotation.z = correction_quaternion[2]
 		marker_correction.transform.rotation.w = correction_quaternion[3]
 		marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
+		marker_corrected.pose.position = marker_in_map.pose.position
+		self.calibrated_pose_pub.publish(marker_corrected)
 		euler_vec = euler_from_quaternion([marker_corrected.pose.orientation.x, marker_corrected.pose.orientation.y, marker_corrected.pose.orientation.z, marker_corrected.pose.orientation.w])
 		orient_vec = quaternion_from_euler(0, 0, euler_vec[2])
 		marker_corrected.pose.orientation.x = orient_vec[0]
 		marker_corrected.pose.orientation.y = orient_vec[1]
 		marker_corrected.pose.orientation.z = orient_vec[2]
 		marker_corrected.pose.orientation.w = orient_vec[3]
-		marker_corrected.pose.position = marker_in_map.pose.position
 		return marker_corrected
 
 	# callback function: transforms measured marker pose into something comparable with robot coordinate system
@@ -79,7 +82,7 @@ class Pose_filter:
 				self.marker_pose.header.frame_id = 'camera_link'
 				# do rotation, and remove unused information
 				self.marker_pose_calibrated = self.do_calibration(self.marker_pose)
-'''
+
 	# following functions serve for temporal Sliding Window
 	# pack the PoseStamped into vector
 	def vec_from_pose(self, pose):
@@ -122,7 +125,7 @@ class Pose_filter:
 				s += vec[i]
 			ans.append(s/len(mat))
 		return ans
-
+'''
 	# callback function that filters marker's pose
 	def filter_callback(self, pose_stamped):
 		[position_vec, orient_vec] = self.vec_from_pose(pose_stamped.pose)
@@ -139,9 +142,22 @@ class Pose_filter:
 '''
 if __name__ == "__main__":
 	my_filter = Pose_filter()
+	position_queue = []
+	orientation_queue = []
 	while(not rospy.is_shutdown()):
 		# if marker 27 is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x):
-			my_filter.filtered_pose_pub.publish(my_filter.marker_pose_calibrated)
-			print(my_filter.marker_pose_calibrated.pose.orientation)
+			#my_filter.filtered_pose_pub.publish(my_filter.marker_pose_calibrated)
+			#print(my_filter.marker_pose_calibrated.pose.orientation)
+			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
+			euler_vec = euler_from_quaternion(orient_vec)
+			position_queue.append(position_vec)
+			orientation_queue.append(orient_vec)
+			filtered_position_vec = my_filter.avr(position_queue)
+			filtered_orient_vec = my_filter.avr(orientation_queue)
+			filtered_pose = my_filter.pose_from_vec(filtered_position_vec, filtered_orient_vec)
+			my_filter.filtered_pose_pub.publish(filtered_pose)
+			if(len(position_queue) == 15):
+				position_queue.pop(0)
+				orientation_queue.pop(0)
 		my_filter.rate.sleep()
