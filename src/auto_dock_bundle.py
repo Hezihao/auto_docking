@@ -113,7 +113,6 @@ class Docking:
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
-		#if(abs(self.marker_pose.pose.position.y) > 0.003):
 		if(abs(self.diff_y) > 0.003):
 			vel.linear.y = kp_y * self.diff_y
 			if abs(vel.linear.y) < 0.15:
