@@ -1,6 +1,12 @@
 <?xml version='1.0'?>
 <launch>
-	<arg name="robot_type" default="mpo_700"/>
-	<include file="$(find neo_simulation)/launch/$(arg robot_type)/$(arg robot_type)_camera.launch" />
+	<arg name="marker_size" default="8" />
+	<arg name="max_new_marker_error" default="0.1" />
+	<arg name="max_track_error" default="0.2" />
+	<arg name="cam_image_topic" default="/camera1/depth/points" />
+	<arg name="cam_info_topic" default="/camera1/depth/camera_info" />
+	<arg name="output_frame" default="/camera_link" />
+	<node name="ar_track_alvar" pkg="ar_track_alvar" type="individualMarkers" respawn="false" output="log" args="$(arg marker_size) $(arg max_new_marker_error) $(arg max_track_error) $(arg cam_image_topic) $(arg cam_info_topic) $(arg output_frame)" />
+	<node name="pose_filter" pkg="neo_docking" type="pose_filter.py" output="screen" />
 	<node name="auto_docking" pkg="neo_docking" type="auto_dock.py" output="screen"/>
 </launch>
