@@ -113,16 +113,17 @@ class Docking:
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
-		if(abs(self.marker_pose.pose.position.y) > 0.003):
-			vel.linear.y = kp_y * self.marker_pose.pose.position.y
+		#if(abs(self.marker_pose.pose.position.y) > 0.003):
+		if(abs(self.diff_y) > 0.003):
+			vel.linear.y = kp_y * self.diff_y
 			if abs(vel.linear.y) < 0.15:
 				vel.linear.y = 0.15 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
 			vel.linear.y = 0
 			# correspondent: montage x = +25cm
-			if(self.marker_pose.pose.position.x - 0.30 > 0.01):
-				vel.linear.x = kp_x * (self.marker_pose.pose.position.x - 0.30)
+			if(self.diff_x - 0.55 > 0.01):
+				vel.linear.x = kp_x * (self.diff_x - 0.30)
 				if(vel.linear.x < 0.15):
 					vel.linear.x = 0.15
 			else:
@@ -149,5 +150,5 @@ if __name__ == '__main__':
 			# make sure marker is detected
 			if(my_docking.marker_pose_calibrated.pose.position.x):
 				my_docking.calculate_diff()
-				#my_docking.auto_docking()
+				my_docking.auto_docking()
 		my_docking.rate.sleep()
