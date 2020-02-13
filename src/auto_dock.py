@@ -6,7 +6,7 @@ import tf2_ros
 import numpy as np
 import tf2_geometry_msgs
 from nav_msgs.msg import Odometry
-from neo_charger.srv import auto_docking
+from neo_docking.srv import auto_docking
 #from ar_track_alvar_msgs.msg import AlvarMarkers
 from geometry_msgs.msg import TransformStamped, PoseStamped, Vector3, Twist
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
