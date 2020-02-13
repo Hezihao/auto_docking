@@ -1,21 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
+	<include file="$(find neo_docking)/launch/rs_neo.launch" />
 	<arg name="marker_size" default="5" />
 	<arg name="max_new_marker_error" default="0.1" />
 	<arg name="max_track_error" default="0.2" />
 	<arg name="bundle_files" default="$(find neo_docking)/bundles/multi_tag.xml" />
-	<!-->
-	<arg name="bundle_files" default="$(find neo_docking)/bundles/truthTableLeg.xml $(find neo_docking)/bundles/multi_tag.xml" />
-	<arg name="cam_image_topic" default="/camera1/depth/points" />
-	<arg name="cam_info_topic" default="/camera1/depth/camera_info" />
-	<-->
 	<arg name="cam_image_topic" default="/camera/depth_registered/points" />
 	<arg name="cam_info_topic" default="/camera/depth/camera_info" />
 	<arg name="output_frame" default="/camera_link" />
 	<arg name="med_filt_size" default="15" />
-	<!-->
-	<node pkg="tf" type="static_transform_publisher" name="world_frame_connection" args="0 0 0 0 0 -1.57 /camera_link /mp_700/camera_link 100"/>
-	<-->
-	<node name="ar_track_alvar" pkg="ar_track_alvar" type="findMarkerBundles" respawn="false" args="$(arg marker_size) $(arg max_new_marker_error) $(arg max_track_error) $(arg cam_image_topic) $(arg cam_info_topic) $(arg output_frame) $(arg med_filt_size) $(arg bundle_files)" >
-	</node>
+	<node name="ar_track_alvar" pkg="ar_track_alvar" type="findMarkerBundles" respawn="false" args="$(arg marker_size) $(arg max_new_marker_error) $(arg max_track_error) $(arg cam_image_topic) $(arg cam_info_topic) $(arg output_frame) $(arg med_filt_size) $(arg bundle_files)" />
+	<node name="pose_filter" pkg="neo_docking" type="pose_filter.py" output="screen" />
 </launch>
