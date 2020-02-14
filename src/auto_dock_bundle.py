@@ -6,7 +6,6 @@ import tf2_ros
 import numpy as np
 import tf2_geometry_msgs
 from nav_msgs.msg import Odometry
-from neo_docking.srv import auto_docking
 from geometry_msgs.msg import TransformStamped, PoseStamped, Vector3, Twist
 from tf.transformations import euler_from_quaternion
 
@@ -19,7 +18,6 @@ class Docking:
 		self.kp_theta = 0.5
 		self.state = 1
 		self.start = 0
-		self.SERVICE_CALLED = False
 		self.base_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		self.base_marker_diff = PoseStamped()
@@ -30,7 +28,7 @@ class Docking:
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		odom_sub = rospy.Subscriber('odom', Odometry, self.odom_callback)
 		filtered_pose_sub = rospy.Subscriber('ar_pose_filtered', PoseStamped, self.pose_callback)
-		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
+		#server = rospy.Service('auto_docking', auto_docking, self.service_callback)
 		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
@@ -75,7 +73,7 @@ class Docking:
 		time_waited = time.time() - self.start
 		# drive robot to where we start the visual servo process
 		# visual servo would remove the error on x & y
-		if(abs(self.diff_x) < 0.70 or time_waited > 10):
+		if(abs(self.diff_x) < 0.80 or time_waited > 10):
 			self.vel.linear.x = 0
 		else:
 			self.vel.linear.x = self.kp_x * self.diff_x
@@ -131,23 +129,14 @@ class Docking:
 		self.vel_pub.publish(vel)
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
-			self.SERVICE_CALLED = False
+			rospy.set_param('docking', False)
 			print("Connection established.")
-
-	# the callback function of service auto_docking
-	def service_callback(self, auto_docking):
-		self.SERVICE_CALLED = True
-		self.start = time.time()
-		print("Service request received.")
-		return "Service requested."
 
 if __name__ == '__main__':
 	my_docking = Docking()
 	while(not rospy.is_shutdown()):
-		# start docking when service is called
-		if(my_docking.SERVICE_CALLED):
-			# make sure marker is detected
-			if(my_docking.marker_pose_calibrated.pose.position.x):
-				my_docking.calculate_diff()
-				my_docking.auto_docking()
+		# make sure marker is detected
+		if(my_docking.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
+			my_docking.calculate_diff()
+			my_docking.auto_docking()
 		my_docking.rate.sleep()

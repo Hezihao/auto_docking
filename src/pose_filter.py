@@ -4,8 +4,9 @@ import rospy
 import tf2_ros
 import numpy as np
 import tf2_geometry_msgs
-from geometry_msgs.msg import PoseStamped, TransformStamped
+from neo_docking.srv import auto_docking
 from ar_track_alvar_msgs.msg import AlvarMarkers
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 class Pose_filter:
@@ -18,7 +19,9 @@ class Pose_filter:
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		self.position_queue = []
 		self.orientation_queue = []
+		self.STATION_NR = None
 		listener = tf2_ros.TransformListener(self.tf_buffer)
+		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
 		self.filtered_pose_pub = rospy.Publisher('ar_pose_filtered', PoseStamped, queue_size=1)
 		# for test
 		self.calibrated_pose_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
@@ -76,7 +79,7 @@ class Pose_filter:
 	# callback function: transforms measured marker pose into something comparable with robot coordinate system
 	def marker_pose_calibration(self, ar_markers):
 		for mkr in ar_markers.markers:
-			if(mkr.id == 27):
+			if(mkr.id == self.STATION_NR):
 			# read pose data of the predefined marker
 				self.marker_pose = mkr.pose
 				self.marker_pose.header.frame_id = 'camera_link'
@@ -126,6 +129,15 @@ class Pose_filter:
 			ans.append(s/len(mat))
 		return ans
 
+	# the callback function of service auto_docking
+	def service_callback(self, auto_docking):
+		self.STATION_NR = auto_docking.station_nr
+		self.position_queue = []
+		self.orientation_queue = []
+		rospy.set_param('docking', True)
+		print("Service request received.")
+		return "Service requested."	
+
 if __name__ == "__main__":
 	my_filter = Pose_filter()
 	position_queue = []
@@ -133,8 +145,6 @@ if __name__ == "__main__":
 	while(not rospy.is_shutdown()):
 		# if marker 27 is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x):
-			#my_filter.filtered_pose_pub.publish(my_filter.marker_pose_calibrated)
-			#print(my_filter.marker_pose_calibrated.pose.orientation)
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
 			position_queue.append(position_vec)
@@ -142,7 +152,8 @@ if __name__ == "__main__":
 			filtered_position_vec = my_filter.avr(position_queue)
 			filtered_orient_vec = my_filter.avr(orientation_queue)
 			filtered_pose = my_filter.pose_from_vec(filtered_position_vec, filtered_orient_vec)
-			my_filter.filtered_pose_pub.publish(filtered_pose)
+			if(rospy.get_param('docking') == True):	
+				my_filter.filtered_pose_pub.publish(filtered_pose)
 			if(len(position_queue) == 15):
 				position_queue.pop(0)
 				orientation_queue.pop(0)
