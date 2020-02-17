@@ -4,7 +4,7 @@
 	<arg name="marker_size" default="5" />
 	<arg name="max_new_marker_error" default="0.1" />
 	<arg name="max_track_error" default="0.2" />
-	<arg name="bundle_files" default="$(find neo_docking)/bundles/multi_tag_nr27.xml" />
+	<arg name="bundle_files" default="$(find neo_docking)/bundles/multi_tag_nr27.xml $(find neo_docking)/bundles/multi_tag_nr36.xml" />
 	<arg name="cam_image_topic" default="/camera/depth_registered/points" />
 	<arg name="cam_info_topic" default="/camera/depth/camera_info" />
 	<arg name="output_frame" default="/camera_link" />
