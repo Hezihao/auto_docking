@@ -140,20 +140,18 @@ class Pose_filter:
 
 if __name__ == "__main__":
 	my_filter = Pose_filter()
-	position_queue = []
-	orientation_queue = []
 	while(not rospy.is_shutdown()):
 		# if marker 27 is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x):
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
-			position_queue.append(position_vec)
-			orientation_queue.append(orient_vec)
-			filtered_position_vec = my_filter.avr(position_queue)
-			filtered_orient_vec = my_filter.avr(orientation_queue)
+			my_filter.position_queue.append(position_vec)
+			my_filter.orientation_queue.append(orient_vec)
+			filtered_position_vec = my_filter.avr(my_filter.position_queue)
+			filtered_orient_vec = my_filter.avr(my_filter.orientation_queue)
 			filtered_pose = my_filter.pose_from_vec(filtered_position_vec, filtered_orient_vec)
 			my_filter.filtered_pose_pub.publish(filtered_pose)
-			if(len(position_queue) == 15):
-				position_queue.pop(0)
-				orientation_queue.pop(0)
+			if(len(my_filter.position_queue) == 15):
+				my_filter.position_queue.pop(0)
+				my_filter.orientation_queue.pop(0)
 		my_filter.rate.sleep()
