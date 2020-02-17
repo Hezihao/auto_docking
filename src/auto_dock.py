@@ -7,7 +7,6 @@ import numpy as np
 import tf2_geometry_msgs
 from nav_msgs.msg import Odometry
 from neo_charger.srv import auto_docking
-#from ar_track_alvar_msgs.msg import AlvarMarkers
 from geometry_msgs.msg import TransformStamped, PoseStamped, Vector3, Twist
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
@@ -20,7 +19,6 @@ class Docking:
 		self.kp_theta = 0.5
 		self.state = 1
 		self.start = 0
-		self.SERVICE_CALLED = False
 		self.base_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		self.base_marker_diff = PoseStamped()
@@ -31,7 +29,6 @@ class Docking:
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		odom_sub = rospy.Subscriber('odom', Odometry, self.odom_callback)
 		marker_pose_sub = rospy.Subscriber('ar_pose_filtered', PoseStamped, self.pose_callback)
-		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
 		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 		self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
@@ -51,7 +48,6 @@ class Docking:
 		# remove the error due to displacement between map-frame and odom-frame
 		map_to_base = self.tf_buffer.lookup_transform('base_link', 'map', rospy.Time(0), rospy.Duration(1.0))
 		odom_map_diff = self.tf_buffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(1.0))
-		#self.ar_pose_corrected_pub.publish(self.marker_pose_calibrated)
 		# compute difference between marker and base_link
 		self.base_pose = tf2_geometry_msgs.do_transform_pose(self.base_pose, odom_map_diff)
 		self.base_pose.header.frame_id = 'map'
@@ -134,23 +130,15 @@ class Docking:
 		self.vel_pub.publish(vel)
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
-			self.SERVICE_CALLED = False
+			rospy.set_param('docking', False)
 			print("Connection established.")
-
-	# the callback function of service auto_docking
-	def service_callback(self, auto_docking):
-		self.SERVICE_CALLED = True
-		self.start = time.time()
-		print("Service request received.")
-		return "Service requested."
 
 if __name__ == '__main__':
 	my_docking = Docking()
 	while(not rospy.is_shutdown()):
 		# start docking when service is called
-		if(my_docking.SERVICE_CALLED):
 			# make sure marker is detected
-			if(my_docking.marker_pose_calibrated.pose.position.x):
-				my_docking.calculate_diff()
-				my_docking.auto_docking()
+		if(my_docking.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
+			my_docking.calculate_diff()
+			my_docking.auto_docking()
 		my_docking.rate.sleep()
