@@ -65,7 +65,7 @@ class Docking:
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
 		if(abs(self.diff_theta) > np.pi):
 			self.diff_theta = self.diff_theta + np.sign(-self.diff_theta)*(2*np.pi)
-		print(self.diff_x, self.diff_y, np.degrees(self.diff_theta))
+		print("Difference: ["+str(self.diff_x)+str(self.diff_y)+str(np.degrees(self.diff_theta))+"]")
 		
 	# execute the first phase of docking process
 	def auto_docking(self):
@@ -97,7 +97,7 @@ class Docking:
 		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
 		# check if the 1st phase of docking is done
 		if(self.state == 0): 
-			print("start visual servo.")
+			#print("start visual servo.")
 			self.visual_servo()
 		else:
 			self.vel_pub.publish(self.vel)
