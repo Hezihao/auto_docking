@@ -17,8 +17,6 @@ class Pose_filter:
 		self.marker_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
-		self.position_queue = []
-		self.orientation_queue = []
 		self.STATION_NR = None
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
@@ -142,7 +140,7 @@ if __name__ == "__main__":
 	my_filter = Pose_filter()
 	while(not rospy.is_shutdown()):
 		# if marker 27 is provided
-		if(my_filter.marker_pose_calibrated.pose.position.x):
+		if(my_filter.marker_pose_calibrated.pose.position.x and my_filter.STATION_NR):
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
 			my_filter.position_queue.append(position_vec)
