@@ -76,6 +76,7 @@ class Pose_filter:
 
 	# callback function: transforms measured marker pose into something comparable with robot coordinate system
 	def marker_pose_calibration(self, ar_markers):
+		self.marker_pose_calibrated = PoseStamped()
 		for mkr in ar_markers.markers:
 			if(mkr.id == self.STATION_NR):
 			# read pose data of the predefined marker
@@ -140,7 +141,7 @@ if __name__ == "__main__":
 	my_filter = Pose_filter()
 	while(not rospy.is_shutdown()):
 		# if marker 27 is provided
-		if(my_filter.marker_pose_calibrated.pose.position.x and my_filter.STATION_NR):
+		if(my_filter.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
 			my_filter.position_queue.append(position_vec)

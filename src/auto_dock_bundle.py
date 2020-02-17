@@ -64,7 +64,7 @@ class Docking:
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
 		if(abs(self.diff_theta) > np.pi):
 			self.diff_theta = self.diff_theta + np.sign(-self.diff_theta)*(2*np.pi)
-		print(self.diff_x, self.diff_y, np.degrees(self.diff_theta))
+		print("Difference: ["+str(self.diff_x)+", "+str(self.diff_y)+", "+str(np.degrees(self.diff_theta))+"]")
 		
 	# execute the first phase of docking process
 	def auto_docking(self):
@@ -130,6 +130,7 @@ class Docking:
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
 			rospy.set_param('docking', False)
+			self.marker_pose_calibrated = PoseStamped()
 			print("Connection established.")
 
 if __name__ == '__main__':
