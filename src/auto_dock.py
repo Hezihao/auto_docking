@@ -7,8 +7,8 @@ import numpy as np
 import tf2_geometry_msgs
 from nav_msgs.msg import Odometry
 from neo_docking.srv import auto_docking
+from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import TransformStamped, PoseStamped, Vector3, Twist
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 class Docking:
 	# initialization

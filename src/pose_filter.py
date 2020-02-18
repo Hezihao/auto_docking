@@ -22,10 +22,7 @@ class Pose_filter:
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
 		self.filtered_pose_pub = rospy.Publisher('ar_pose_filtered', PoseStamped, queue_size=1)
-		# for test
-		self.calibrated_pose_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
-		origin_pose_sub = rospy.Subscriber('ar_pose_marker', AlvarMarkers, self.marker_pose_calibration)
-
+		
 	# establish the rotation matrix from euler angle
 	def mat_from_euler(self, euler):
 		alpha = euler[0]
@@ -37,6 +34,7 @@ class Pose_filter:
 		cb = np.cos(beta)
 		sr = np.sin(gamma)		# wrt z-axis
 		cr = np.cos(gamma)
+		# euler rotation matrix
 		mat = [[cb*cr, sa*sb*cr - ca*sr, ca*sb*cr + sa*sr], [cb*sr, sa*sb*sr + ca*cr, ca*sb*sr - sa*cr], [-sb, sa*cb, ca*cb]]
 		return mat		
 
@@ -66,7 +64,7 @@ class Pose_filter:
 		marker_correction.transform.rotation.w = correction_quaternion[3]
 		marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
 		marker_corrected.pose.position = marker_in_map.pose.position
-		self.calibrated_pose_pub.publish(marker_corrected)
+		# ignore row & yaw of marker coordinate system
 		euler_vec = euler_from_quaternion([marker_corrected.pose.orientation.x, marker_corrected.pose.orientation.y, marker_corrected.pose.orientation.z, marker_corrected.pose.orientation.w])
 		orient_vec = quaternion_from_euler(0, 0, euler_vec[2])
 		marker_corrected.pose.orientation.x = orient_vec[0]
@@ -79,6 +77,7 @@ class Pose_filter:
 	def marker_pose_calibration(self, ar_markers):
 		self.marker_pose_calibrated = PoseStamped()
 		for mkr in ar_markers.markers:
+			# push every detected marker into the list
 			self.marker_list.append(mkr.id)
 			if(mkr.id == self.STATION_NR):
 			# read pose data of the predefined marker
@@ -92,11 +91,9 @@ class Pose_filter:
 	def vec_from_pose(self, pose):
 		position_vec =  []
 		orient_vec = []
-
 		position_vec.append(pose.position.x)
 		position_vec.append(pose.position.y)
 		position_vec.append(pose.position.z)
-
 		orient_vec.append(pose.orientation.x)
 		orient_vec.append(pose.orientation.y)
 		orient_vec.append(pose.orientation.z)
@@ -144,6 +141,7 @@ if __name__ == "__main__":
 	while(not rospy.is_shutdown()):		
 		# if STATION_NR is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
+			# implementing a temporal sliding window filter here
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
 			my_filter.position_queue.append(position_vec)
@@ -152,9 +150,12 @@ if __name__ == "__main__":
 			filtered_orient_vec = my_filter.avr(my_filter.orientation_queue)
 			filtered_pose = my_filter.pose_from_vec(filtered_position_vec, filtered_orient_vec)
 			my_filter.filtered_pose_pub.publish(filtered_pose)
+			# discard the oldest element in queue
 			if(len(my_filter.position_queue) == 15):
 				my_filter.position_queue.pop(0)
 				my_filter.orientation_queue.pop(0)
+		# provide an output to remind user of starting docking at correct position(rosservice call)
+		# wouldn't be necessary if choose to change docking into autonomous process
 		elif(my_filter.marker_list):
 			print("Marker(s) detected: ")
 			print(my_filter.marker_list)
