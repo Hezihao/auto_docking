@@ -17,6 +17,7 @@ class Pose_filter:
 		self.marker_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
+		self.marker_list = []
 		self.STATION_NR = None
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
@@ -78,6 +79,7 @@ class Pose_filter:
 	def marker_pose_calibration(self, ar_markers):
 		self.marker_pose_calibrated = PoseStamped()
 		for mkr in ar_markers.markers:
+			self.marker_list.append(mkr.id)
 			if(mkr.id == self.STATION_NR):
 			# read pose data of the predefined marker
 				self.marker_pose = mkr.pose
@@ -139,8 +141,8 @@ class Pose_filter:
 
 if __name__ == "__main__":
 	my_filter = Pose_filter()
-	while(not rospy.is_shutdown()):
-		# if marker 27 is provided
+	while(not rospy.is_shutdown()):		
+		# if STATION_NR is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
@@ -153,4 +155,8 @@ if __name__ == "__main__":
 			if(len(my_filter.position_queue) == 15):
 				my_filter.position_queue.pop(0)
 				my_filter.orientation_queue.pop(0)
+		elif(my_filter.marker_list):
+			print("Marker(s) detected: ")
+			print(my_filter.marker_list)
+			my_filter.marker_list = []
 		my_filter.rate.sleep()
