@@ -18,9 +18,11 @@ class Pose_filter:
 		self.marker_pose_calibrated = PoseStamped()
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		self.marker_list = []
+		self.marker_list_printed = []
 		self.STATION_NR = None
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
+		self.pose_sub = rospy.Subscriber('ar_pose_marker', AlvarMarkers, self.marker_pose_calibration)
 		self.filtered_pose_pub = rospy.Publisher('ar_pose_filtered', PoseStamped, queue_size=1)
 		
 	# establish the rotation matrix from euler angle
@@ -76,9 +78,11 @@ class Pose_filter:
 	# callback function: transforms measured marker pose into something comparable with robot coordinate system
 	def marker_pose_calibration(self, ar_markers):
 		self.marker_pose_calibrated = PoseStamped()
+		self.marker_list = []
 		for mkr in ar_markers.markers:
 			# push every detected marker into the list
-			self.marker_list.append(mkr.id)
+			if(not mkr.id in self.marker_list):
+				self.marker_list.append(mkr.id)
 			if(mkr.id == self.STATION_NR):
 			# read pose data of the predefined marker
 				self.marker_pose = mkr.pose
@@ -156,8 +160,8 @@ if __name__ == "__main__":
 				my_filter.orientation_queue.pop(0)
 		# provide an output to remind user of starting docking at correct position(rosservice call)
 		# wouldn't be necessary if choose to change docking into autonomous process
-		elif(my_filter.marker_list):
+		elif(my_filter.marker_list and not my_filter.marker_list == my_filter.marker_list_printed):
 			print("Marker(s) detected: ")
 			print(my_filter.marker_list)
-			my_filter.marker_list = []
+			my_filter.marker_list_printed = my_filter.marker_list
 		my_filter.rate.sleep()
