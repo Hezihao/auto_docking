@@ -37,7 +37,7 @@ class Pose_filter:
 		self.K = 0.0
 		self.dt = 1.0/15
 		self.F = np.array([[1.0, self.dt], [0.0, 1.0]])
-		self.B = np.array([[self.dt], [0.0]])
+		#self.B = np.array([[self.dt], [0.0]])
 		self.H = np.array([1.0, 0.0])
 		self.H_t = np.array([[1.0], [0.0]])
 		self.Q_ang = 0.001
@@ -46,8 +46,27 @@ class Pose_filter:
 		# R = 0.03 recommended
 		self.R = 0.01
 
+		# initializing KF for translation
+		self.xt = np.array([])
+		self.Pt = 100.0 * np.eye(6)
+		self.zt = np.array([[],[],[]])
+		self.yt = self.zt
+		self.St = np.zeros((3,3))
+		self.Kt = np.zeros((6,3))
+		self.Ft = np.eye(6)
+		for i in range(3):
+			self.Ft[i][i+3] = self.dt
+		#self.Bt = None
+		self.Ht = np.eye(6)[:3]
+		self.Ht_t = self.Ht.transpose()
+		self.Qt = np.eye(6)
+		self.Qt[:3] = self.Q_ang * self.Qt[:3]
+		self.Qt[3:] = self.Q_vel * self.Qt[3:]
+		# R = 0.03 recommended
+		self.Rt = 0.01 * np.eye(3)
+
 	# Kalman filter first try, only serves for estimate of gamma
-	def kalman_filter(self):
+	def kalman_filter_rotation(self):
 		# fetching the measurement
 		[p, orient_vec] = self.vec_from_pose(self.marker_pose_calibrated.pose)
 		euler_vec = euler_from_quaternion(orient_vec)
@@ -72,6 +91,25 @@ class Pose_filter:
 		self.marker_pose_filtered.pose.orientation.z = orient_vec[2]
 		self.marker_pose_filtered.pose.orientation.w = orient_vec[3]
 
+	# Test KF for estimate of position, later will be merged
+	def kalman_filter_translation(self):
+		[position_vec, o] = self.vec_from_pose(self.marker_pose_calibrated.pose)
+		if(not self.xt.any()):
+			self.xt = np.array([[position_vec[0]], [position_vec[1]], [position_vec[2]], [0], [0], [0]])
+		self.zt = np.array([[position_vec[0]], [position_vec[1]], [position_vec[2]]])
+		# predict
+		self.xt = self.Ft.dot(self.xt)
+		self.Pt = self.Ft.dot(self.Pt.dot(self.Ft.transpose())) + self.Qt
+		# update
+		self.yt = self.zt - self.Ht.dot(self.xt)
+		self.St = self.Ht.dot(self.Pt.dot(self.Ht.transpose())) + self.Rt
+		self.Kt = self.Pt.dot(self.Ht.transpose().dot(np.linalg.inv(self.St)))
+		self.xt = self.xt + self.Kt.dot(self.yt)
+		self.Pt = self.Pt - self.Kt.dot(self.Ht.dot(self.Pt))
+		# interface
+		self.marker_pose_filtered.pose.position.x = self.xt[0][0]
+		self.marker_pose_filtered.pose.position.y = self.xt[1][0]
+		self.marker_pose_filtered.pose.position.z = self.xt[2][0]
 
 	# establish the rotation matrix from euler angle
 	def mat_from_euler(self, euler):
@@ -196,7 +234,6 @@ if __name__ == "__main__":
 	while(not rospy.is_shutdown()):		
 		# if STATION_NR is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
-
 			# keeping it for comparison
 			# implementing a temporal sliding window filter here
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
@@ -212,7 +249,8 @@ if __name__ == "__main__":
 				my_filter.position_queue.pop(0)
 				my_filter.orientation_queue.pop(0)
 			# using Kalman filter instead of sliding window
-			my_filter.kalman_filter()
+			my_filter.kalman_filter_rotation()
+			my_filter.kalman_filter_translation()
 			my_filter.filtered_pose_pub.publish(my_filter.marker_pose_filtered)
 
 		# provide an output to remind user of starting docking at correct position(rosservice call)
