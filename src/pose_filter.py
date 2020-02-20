@@ -66,7 +66,7 @@ class Pose_filter:
 		marker_correction.transform.rotation.w = correction_quaternion[3]
 		marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
 		marker_corrected.pose.position = marker_in_map.pose.position
-		# ignore row & yaw of marker coordinate system
+		# ignore row & pitch of marker coordinate system
 		euler_vec = euler_from_quaternion([marker_corrected.pose.orientation.x, marker_corrected.pose.orientation.y, marker_corrected.pose.orientation.z, marker_corrected.pose.orientation.w])
 		orient_vec = quaternion_from_euler(0, 0, euler_vec[2])
 		marker_corrected.pose.orientation.x = orient_vec[0]
