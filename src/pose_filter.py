@@ -13,7 +13,7 @@ class Pose_filter:
 	# initialization
 	def __init__(self):
 		rospy.init_node('marker_pose_filter')
-		self.rate = rospy.Rate(15)
+		self.rate = rospy.Rate(80)
 		self.marker_pose_filtered = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
 		#self.marker_pose_calibrated = PoseStamped()
@@ -25,7 +25,7 @@ class Pose_filter:
 		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
 		self.pose_sub = rospy.Subscriber('ar_pose_marker', AlvarMarkers, self.marker_pose_calibration)
 		self.filtered_pose_pub = rospy.Publisher('ar_pose_KF', PoseStamped, queue_size=1)
-		self.origin_pose_pub = rospy.Publisher('ar_pose_filtered', PoseStamped, queue_size=1)
+		self.sw_pose_pub = rospy.Publisher('ar_pose_sw', PoseStamped, queue_size=1)
 
 		# initializing Kalman filter
 		#self.x = np.array([[0.0], [0.0]])
@@ -43,7 +43,8 @@ class Pose_filter:
 		self.Q_ang = 0.001
 		self.Q_vel = 0.003
 		self.Q = np.array([[self.Q_ang, 0.0], [0.0, self.Q_vel]])
-		self.R = 0.03
+		# R = 0.03 recommended
+		self.R = 0.01
 
 	# Kalman filter first try, only serves for estimate of gamma
 	def kalman_filter(self):
@@ -113,7 +114,7 @@ class Pose_filter:
 		marker_correction.transform.rotation.w = correction_quaternion[3]
 		marker_corrected = tf2_geometry_msgs.do_transform_pose(marker_in_map, marker_correction)
 		marker_corrected.pose.position = marker_in_map.pose.position
-		# ignore row & yaw of marker coordinate system
+		# ignore row & pitch of marker coordinate system
 		euler_vec = euler_from_quaternion([marker_corrected.pose.orientation.x, marker_corrected.pose.orientation.y, marker_corrected.pose.orientation.z, marker_corrected.pose.orientation.w])
 		orient_vec = quaternion_from_euler(0, 0, euler_vec[2])
 		marker_corrected.pose.orientation.x = orient_vec[0]
@@ -139,7 +140,6 @@ class Pose_filter:
 				marker_pose.header.frame_id = 'camera_link'
 				# do rotation, and remove unused information
 				self.marker_pose_calibrated = self.do_calibration(marker_pose)
-				self.origin_pose_pub.publish(self.marker_pose_calibrated)
 
 	# following functions serve for temporal Sliding Window
 	# pack the PoseStamped into vector
@@ -196,7 +196,8 @@ if __name__ == "__main__":
 	while(not rospy.is_shutdown()):		
 		# if STATION_NR is provided
 		if(my_filter.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
-			'''
+
+			# keeping it for comparison
 			# implementing a temporal sliding window filter here
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
@@ -205,12 +206,11 @@ if __name__ == "__main__":
 			filtered_position_vec = my_filter.avr(my_filter.position_queue)
 			filtered_orient_vec = my_filter.avr(my_filter.orientation_queue)
 			filtered_pose = my_filter.pose_from_vec(filtered_position_vec, filtered_orient_vec)
-			my_filter.filtered_pose_pub.publish(filtered_pose)
+			my_filter.sw_pose_pub.publish(filtered_pose)
 			# discard the oldest element in queue
 			if(len(my_filter.position_queue) == 15):
 				my_filter.position_queue.pop(0)
 				my_filter.orientation_queue.pop(0)
-			'''
 			# using Kalman filter instead of sliding window
 			my_filter.kalman_filter()
 			my_filter.filtered_pose_pub.publish(my_filter.marker_pose_filtered)
