@@ -77,14 +77,14 @@ class Docking:
 		if(abs(self.diff_x) < 0.70 or time_waited > 10):
 			self.vel.linear.x = 0
 		else:
-			self.vel.linear.x = self.kp_x * self.diff_x
+			self.vel.linear.x = min(max(self.kp_x * self.diff_x, 0.05), 0.1)
 		if(abs(self.diff_y) < 0.005 or time_waited > 10):
 			self.vel.linear.y = 0
 		else:
 			self.vel.linear.y = self.kp_y * self.diff_y
 			# defining the minimal cmd_vel on y-direction
-			if abs(self.vel.linear.y) < 0.15:
-				self.vel.linear.y = 0.15 * np.sign(self.vel.linear.y)
+			if abs(self.vel.linear.y) < 0.03:
+				self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
 		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 20):
 			self.vel.angular.z = 0
 		# filter out shakes from AR tracking package
@@ -114,16 +114,14 @@ class Docking:
 		# to avoid causing hardware damage
 		if(abs(self.diff_y) > 0.003):
 			vel.linear.y = kp_y * self.diff_y
-			if abs(vel.linear.y) < 0.15:
-				vel.linear.y = 0.15 * np.sign(vel.linear.y)
+			if abs(vel.linear.y) < 0.03:
+				vel.linear.y = 0.03 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
 			vel.linear.y = 0
 			# correspondent: montage x = +25cm
 			if(self.diff_x - 0.55 > 0.01):
-				vel.linear.x = kp_x * (self.diff_x - 0.30)
-				if(vel.linear.x < 0.15):
-					vel.linear.x = 0.15
+				vel.linear.x = min(max(kp_x * (self.diff_x - 0.30), 0.05), 0.1)
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
