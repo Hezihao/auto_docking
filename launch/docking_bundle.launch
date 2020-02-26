@@ -1,0 +1,15 @@
+<?xml version='1.0'?>
+<launch>
+	<include file="$(find neo_docking)/launch/rs_neo.launch" />
+	<arg name="marker_size" default="12" />
+	<arg name="max_new_marker_error" default="0.1" />
+	<arg name="max_track_error" default="0.2" />
+	<arg name="cam_image_topic" default="/camera/depth_registered/points" />
+	<arg name="cam_info_topic" default="/camera/depth/camera_info" />
+	<arg name="output_frame" default="/camera_link" />
+	<arg name="bundle_files" default="$(find neo_docking)/bundles/multi_tag_nr27.xml $(find neo_docking)/bundles/multi_tag_nr36.xml" />
+	<arg name="med_filt_size" default="15" />
+	<node name="ar_track_alvar" pkg="ar_track_alvar" type="findMarkerBundles" respawn="false" args="$(arg marker_size) $(arg max_new_marker_error) $(arg max_track_error) $(arg cam_image_topic) $(arg cam_info_topic) $(arg output_frame) $(arg med_filt_size) $(arg bundle_files)" />
+	<node name="pose_filter" pkg="neo_docking" type="pose_filter.py" output="screen" />
+	<node name="auto_docking" pkg="neo_docking" type="auto_dock.py" output="screen"/>
+</launch>
