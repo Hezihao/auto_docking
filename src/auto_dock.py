@@ -17,7 +17,7 @@ class Docking:
 		self.kp_x = 0.3
 		self.kp_y = 1.5
 		self.kp_theta = 0.5
-		self.state = 1
+		#self.state = 1
 		self.start = 0
 		self.base_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
@@ -32,6 +32,8 @@ class Docking:
 		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 		self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
+		# in test
+		self.LAST_STEP = False
 
 	# callback function of odom_sub
 	def odom_callback(self, odom):
@@ -94,9 +96,9 @@ class Docking:
 			self.vel.angular.z = self.kp_theta * self.diff_theta
 			if(abs(self.vel.angular.z) < 0.02):
 				self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
-		self.state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
+		state = self.vel.linear.x + self.vel.linear.y + self.vel.angular.z
 		# check if the 1st phase of docking is done
-		if(self.state == 0): 
+		if(state == 0): 
 			#print("start visual servo.")
 			self.visual_servo()
 		else:
@@ -112,16 +114,26 @@ class Docking:
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
-		if(abs(self.diff_y) > 0.003):
+		
+		# use a larger threshold when in last step, because the noise of visual feedback always makes vel.linear.y jumps between some value and 0
+		# which destroyed the priority of y
+		if(self.LAST_STEP):
+			tolerance = 0.01
+		else:
+			tolerance = 0.003
+		if(abs(self.diff_y) > tolerance):
 			vel.linear.y = kp_y * self.diff_y
 			if abs(vel.linear.y) < 0.03:
 				vel.linear.y = 0.03 * np.sign(vel.linear.y)
+			elif abs(vel.linear.y > 0.05):
+				vel.linear.y = 0.05 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
+			self.LAST_STEP = True
 			vel.linear.y = 0
 			# correspondent: montage x = +25cm
 			if(self.diff_x - 0.55 > 0.01):
-				vel.linear.x = min(max(kp_x * (self.diff_x - 0.30), 0.05), 0.1)
+				vel.linear.x = min(max(kp_x * (self.diff_x - 0.30), 0.03), 0.05)
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
