@@ -32,6 +32,8 @@ class Docking:
 		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 		self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
+		# in test
+		self.LAST_STEP = False
 
 	# callback function of odom_sub
 	def odom_callback(self, odom):
@@ -112,12 +114,20 @@ class Docking:
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
+
+		# use a larger threshold when in last step, because the noise of visual feedback always makes vel.linear.y jumps between some value and 0
+		# which destroyed the priority of y
+		if(self.LAST_STEP):
+			tolerance = 0.01
+		else:
+			tolerance = 0.003
 		if(abs(self.diff_y) > 0.003):
 			vel.linear.y = kp_y * self.diff_y
 			if abs(vel.linear.y) < 0.15:
 				vel.linear.y = 0.15 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
+			self.LAST_STEP = True
 			vel.linear.y = 0
 			# correspondent: montage x = +25cm
 			if(self.diff_x - 0.55 > 0.01):
