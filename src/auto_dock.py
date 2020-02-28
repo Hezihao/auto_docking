@@ -105,6 +105,8 @@ class Docking:
 				# defining the minimal cmd_vel on y-direction
 				if abs(self.vel.linear.y) < 0.03:
 					self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
+				elif abs(self.vel.linear.y) > 0.08:
+					self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
 		# filter out shakes from AR tracking package
 		elif(abs(np.degrees(self.diff_theta)) > 65):
 			self.vel.angular.z = 0.005 * np.sign(self.diff_theta)
@@ -161,7 +163,7 @@ class Docking:
 					self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
 		self.vel_pub.publish(vel)
 		# check if the process is done
-		if(not (vel.linear.x + vel.linear.y)):
+		if(not (vel.linear.x + vel.linear.y) + vel.angular.z):
 			rospy.set_param('docking', False)
 			self.marker_pose_calibrated = PoseStamped()
 			print("Connection established.")
