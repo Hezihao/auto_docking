@@ -76,6 +76,7 @@ class Docking:
 		time_waited = time.time() - self.start
 		# drive robot to where we start the visual servo process
 		# visual servo would remove the error on x & y
+		'''
 		if(abs(self.diff_x) < 0.70 or time_waited > 10):
 			self.vel.linear.x = 0
 		else:
@@ -87,8 +88,23 @@ class Docking:
 			# defining the minimal cmd_vel on y-direction
 			if abs(self.vel.linear.y) < 0.03:
 				self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
+		'''
+		# in test
+		self.vel.linear.x = 0
+		self.vel.linear.y = 0
 		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 20):
 			self.vel.angular.z = 0
+			if(abs(self.diff_y) < 0.005 or time_waited > 10):
+				self.vel.linear.y = 0
+				if(abs(self.diff_x) < 0.70 or time_waited > 10):
+					self.vel.linear.x = 0
+				else:
+					self.vel.linear.x = self.kp_x * self.diff_x
+			else:
+				self.vel.linear.y = self.kp_y * self.diff_y
+				# defining the minimal cmd_vel on y-direction
+				if abs(self.vel.linear.y) < 0.15:
+					self.vel.linear.y = 0.15 * np.sign(self.vel.linear.y)
 		# filter out shakes from AR tracking package
 		elif(abs(np.degrees(self.diff_theta)) > 65):
 			self.vel.angular.z = 0.005 * np.sign(self.diff_theta)
