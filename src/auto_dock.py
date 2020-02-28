@@ -92,14 +92,14 @@ class Docking:
 		# in test
 		self.vel.linear.x = 0
 		self.vel.linear.y = 0
-		if(abs(np.degrees(self.diff_theta)) < 0.03 or time_waited > 20):
+		if(abs(np.degrees(self.diff_theta)) < 0.5 or time_waited > 20):
 			self.vel.angular.z = 0
 			if(abs(self.diff_y) < 0.005 or time_waited > 10):
 				self.vel.linear.y = 0
 				if(abs(self.diff_x) < 0.70 or time_waited > 10):
 					self.vel.linear.x = 0
 				else:
-					self.vel.linear.x = self.kp_x * self.diff_x
+					self.vel.linear.x = min(max(self.kp_x * self.diff_x, 0.05), 0.1)
 			else:
 				self.vel.linear.y = self.kp_y * self.diff_y
 				# defining the minimal cmd_vel on y-direction
@@ -153,6 +153,12 @@ class Docking:
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
+			if(abs(np.degrees(self.diff_theta)) < 0.05):
+				vel.angular.z = 0
+			else:
+				vel.angular.z = 0.5 * self.kp_theta * self.diff_theta
+				if(abs(self.vel.angular.z) < 0.02):
+					self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
 		self.vel_pub.publish(vel)
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
