@@ -94,7 +94,7 @@ class Docking:
 				if abs(self.vel.linear.y) < 0.03:
 					self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
 				elif abs(self.vel.linear.y) > 0.08:
-					self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
+					self.vel.linear.y = 0.08 * np.sign(self.vel.linear.y)
 		# filter out shakes from AR tracking package
 		elif(abs(np.degrees(self.diff_theta)) > 65):
 			self.vel.angular.z = 0.005 * np.sign(self.diff_theta)
