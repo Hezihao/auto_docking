@@ -63,6 +63,7 @@ class Docking:
 		base_pose_euler = euler_from_quaternion([self.base_pose.pose.orientation.x, self.base_pose.pose.orientation.y, self.base_pose.pose.orientation.z, self.base_pose.pose.orientation.w])
 		# calculate the difference
 		self.diff_x = self.base_marker_diff.pose.position.x
+		# calibration of camera mounting		
 		self.diff_y = self.base_marker_diff.pose.position.y
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
 		if(abs(self.diff_theta) > np.pi):
@@ -93,8 +94,8 @@ class Docking:
 				# defining the minimal cmd_vel on y-direction
 				if abs(self.vel.linear.y) < 0.03:
 					self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
-				elif abs(self.vel.linear.y) > 0.08:
-					self.vel.linear.y = 0.03 * np.sign(self.vel.linear.y)
+				elif abs(self.vel.linear.y) > 0.05:
+					self.vel.linear.y = 0.05 * np.sign(self.vel.linear.y)
 		# filter out shakes from AR tracking package
 		elif(abs(np.degrees(self.diff_theta)) > 65):
 			self.vel.angular.z = 0.005 * np.sign(self.diff_theta)
