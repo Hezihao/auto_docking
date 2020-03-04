@@ -16,6 +16,7 @@ class Pose_filter:
 		self.rate = rospy.Rate(15)
 		self.marker_pose = PoseStamped()
 		self.marker_pose_calibrated = PoseStamped()
+		self.memorized_marker = PoseStamped()
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		self.marker_list = []
 		self.marker_list_printed = []
@@ -24,6 +25,8 @@ class Pose_filter:
 		server = rospy.Service('auto_docking', auto_docking, self.service_callback)
 		self.pose_sub = rospy.Subscriber('ar_pose_marker', AlvarMarkers, self.marker_pose_calibration)
 		self.filtered_pose_pub = rospy.Publisher('ar_pose_filtered', PoseStamped, queue_size=1)
+		# test
+		self.unfiltered_pose_pub = rospy.Publisher('origin_pose', PoseStamped, queue_size=1)
 
 	# establish the rotation matrix from euler angle
 	def mat_from_euler(self, euler):
@@ -89,6 +92,7 @@ class Pose_filter:
 				self.marker_pose.header.frame_id = 'camera_link'
 				# do rotation, and remove unused information
 				self.marker_pose_calibrated = self.do_calibration(self.marker_pose)
+				self.memorized_marker = self.marker_pose_calibrated
 
 	# following functions serve for temporal Sliding Window
 	# pack the PoseStamped into vector
@@ -143,8 +147,12 @@ class Pose_filter:
 if __name__ == "__main__":
 	my_filter = Pose_filter()
 	while(not rospy.is_shutdown()):
+		try:
+			state = rospy.get_param('docking')
+		except:
+			state = False
 		# if STATION_NR is provided
-		if(my_filter.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
+		if(my_filter.marker_pose_calibrated.pose.position.x and state):
 			# implementing a temporal sliding window filter here
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
@@ -155,9 +163,12 @@ if __name__ == "__main__":
 			filtered_pose = my_filter.pose_from_vec(filtered_position_vec, filtered_orient_vec)
 			if(rospy.get_param('docking') == True):	
 				my_filter.filtered_pose_pub.publish(filtered_pose)
+				my_filter.unfiltered_pose_pub.publish(my_filter.marker_pose_calibrated)
 			if(len(my_filter.position_queue) == 15):
 				my_filter.position_queue.pop(0)
 				my_filter.orientation_queue.pop(0)
+		elif(not my_filter.marker_pose_calibrated.pose.position.x and state):
+			my_filter.filtered_pose_pub.publish(my_filter.memorized_marker)
 		# provide an output to remind user of starting docking at correct position(rosservice call)
 		# wouldn't be necessary if choose to change docking into autonomous process
 		elif(my_filter.marker_list and not my_filter.marker_list == my_filter.marker_list_printed):
