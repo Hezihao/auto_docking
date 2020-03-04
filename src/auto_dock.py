@@ -28,7 +28,7 @@ class Docking:
 		self.tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
 		listener = tf2_ros.TransformListener(self.tf_buffer)
 		odom_sub = rospy.Subscriber('odom', Odometry, self.odom_callback)
-		marker_pose_sub = rospy.Subscriber('ar_pose_filtered', PoseStamped, self.pose_callback)
+		marker_pose_sub = rospy.Subscriber('ar_pose_KF', PoseStamped, self.pose_callback)
 		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 		self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
@@ -65,7 +65,7 @@ class Docking:
 		self.diff_theta = marker_pose_calibrated_euler[2]-base_pose_euler[2]
 		if(abs(self.diff_theta) > np.pi):
 			self.diff_theta = self.diff_theta + np.sign(-self.diff_theta)*(2*np.pi)
-		#print("Difference: ["+str(self.diff_x)+", "+str(self.diff_y)+", "+str(np.degrees(self.diff_theta))+"]")
+		print("Difference: ["+str(self.diff_x)+", "+str(self.diff_y)+", "+str(np.degrees(self.diff_theta))+"]")
 		
 	# execute the first phase of docking process
 	def auto_docking(self):
@@ -100,8 +100,8 @@ class Docking:
 			#print("start visual servo.")
 			self.visual_servo()
 		else:
-			#self.vel_pub.publish(self.vel)
-			pass
+			self.vel_pub.publish(self.vel)
+			#pass
 
 	# second phase of docking, directly using visual information
 	def visual_servo(self):
@@ -128,7 +128,7 @@ class Docking:
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
-		#self.vel_pub.publish(vel)
+		self.vel_pub.publish(vel)
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y)):
 			rospy.set_param('docking', False)
