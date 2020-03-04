@@ -31,7 +31,7 @@ class Docking:
 		marker_pose_sub = rospy.Subscriber('ar_pose_KF', PoseStamped, self.pose_callback)
 		rospy.loginfo("auto_docking service is ready.")
 		self.vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
-		self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
+		#self.ar_pose_corrected_pub = rospy.Publisher('ar_pose_corrected', PoseStamped, queue_size=1)
 
 	# callback function of odom_sub
 	def odom_callback(self, odom):

@@ -26,6 +26,8 @@ class Pose_filter:
 		self.pose_sub = rospy.Subscriber('ar_pose_marker', AlvarMarkers, self.marker_pose_calibration)
 		self.filtered_pose_pub = rospy.Publisher('ar_pose_KF', PoseStamped, queue_size=1)
 		self.sw_pose_pub = rospy.Publisher('ar_pose_sw', PoseStamped, queue_size=1)
+		# test
+		self.origin_pose_pub = rospy.Publisher('ar_pose_unfiltered', PoseStamped, queue_size=1)
 
 		# initializing Kalman filter
 		#self.x = np.array([[0.0], [0.0]])
@@ -236,6 +238,7 @@ if __name__ == "__main__":
 		if(my_filter.marker_pose_calibrated.pose.position.x and rospy.get_param('docking')):
 			# keeping it for comparison
 			# implementing a temporal sliding window filter here
+			my_filter.origin_pose_pub.publish(my_filter.marker_pose_calibrated)
 			[position_vec, orient_vec] = my_filter.vec_from_pose(my_filter.marker_pose_calibrated.pose)
 			euler_vec = euler_from_quaternion(orient_vec)
 			my_filter.position_queue.append(position_vec)
