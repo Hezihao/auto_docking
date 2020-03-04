@@ -81,9 +81,9 @@ class Docking:
 		self.vel.linear.x = 0
 		self.vel.linear.y = 0
 		# threshold in test, try to counter overshooting in first process
-		if(abs(np.degrees(self.diff_theta)) < 1 or time_waited > 20):
+		if(abs(np.degrees(self.diff_theta)) < 2 or time_waited > 20):
 			self.vel.angular.z = 0
-			if(abs(self.diff_y) < 0.005 or time_waited > 10):
+			if(abs(self.diff_y) < 0.05 or time_waited > 10):
 				self.vel.linear.y = 0
 				if(abs(self.diff_x) < 0.70 or time_waited > 10):
 					self.vel.linear.x = 0
@@ -125,13 +125,13 @@ class Docking:
 		# use a larger threshold when in last step, because the noise of visual feedback always makes vel.linear.y jumps between some value and 0
 		# which destroyed the priority of y
 		if(self.LAST_STEP):
-			tolerance = 0.01
+			tolerance = 0.008
 		else:
 			tolerance = 0.003
 		if(abs(self.diff_y) > tolerance):
 			vel.linear.y = kp_y * self.diff_y
-			if abs(vel.linear.y) < 0.03:
-				vel.linear.y = 0.03 * np.sign(vel.linear.y)
+			if abs(vel.linear.y) < 0.01:
+				vel.linear.y = 0.01 * np.sign(vel.linear.y)
 			elif abs(vel.linear.y > 0.05):
 				vel.linear.y = 0.05 * np.sign(vel.linear.y)
 			vel.linear.x = 0
@@ -147,12 +147,12 @@ class Docking:
 			if(abs(np.degrees(self.diff_theta)) < 0.05):
 				vel.angular.z = 0
 			else:
-				vel.angular.z = 0.5 * self.kp_theta * self.diff_theta
+				vel.angular.z = 0.2 * self.kp_theta * self.diff_theta
 				if(abs(self.vel.angular.z) < 0.02):
 					self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
 		self.vel_pub.publish(vel)
 		# check if the process is done
-		if(not (vel.linear.x + vel.linear.y) + vel.angular.z):
+		if(not (vel.linear.x + vel.linear.y + vel.angular.z)):
 			rospy.set_param('docking', False)
 			self.marker_pose_calibrated = PoseStamped()
 			print("Connection established.")
