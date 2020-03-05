@@ -109,7 +109,7 @@ class Docking:
 		kp_y = 3.0
 		vel = Twist()
 		# in case the 2nd docking process failed
-		if(abs(np.degrees(self.diff_theta) > 5) or self.diff_y > 0.02):
+		if(abs(np.degrees(self.diff_theta)) > 5 or self.diff_y > 0.02):
 			self.start = time.time()
 		# won't adjust vel.linear.x and vel.linear.y at the same time,
 		# to avoid causing hardware damage
