@@ -125,15 +125,15 @@ class Docking:
 		# use a larger threshold when in last step, because the noise of visual feedback always makes vel.linear.y jumps between some value and 0
 		# which destroyed the priority of y
 		if(self.LAST_STEP):
-			tolerance = 0.008
+			tolerance = 0.005
 		else:
 			tolerance = 0.003
 		if(abs(self.diff_y) > tolerance):
 			vel.linear.y = kp_y * self.diff_y
 			if abs(vel.linear.y) < 0.01:
 				vel.linear.y = 0.01 * np.sign(vel.linear.y)
-			elif abs(vel.linear.y > 0.05):
-				vel.linear.y = 0.05 * np.sign(vel.linear.y)
+			elif abs(vel.linear.y > 0.04):
+				vel.linear.y = 0.04 * np.sign(vel.linear.y)
 			vel.linear.x = 0
 		else:
 			self.LAST_STEP = True
@@ -144,12 +144,12 @@ class Docking:
 			else:
 				vel.linear.x = 0
 				vel.linear.y = 0
-			if(abs(np.degrees(self.diff_theta)) < 0.05):
-				vel.angular.z = 0
-			else:
-				vel.angular.z = 0.2 * self.kp_theta * self.diff_theta
-				if(abs(self.vel.angular.z) < 0.02):
-					self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
+				if(abs(np.degrees(self.diff_theta)) < 0.05):
+					vel.angular.z = 0
+				else:
+					vel.angular.z = 0.2 * self.kp_theta * self.diff_theta
+					if(abs(self.vel.angular.z) < 0.02):
+						self.vel.angular.z = 0.02 * np.sign(self.vel.angular.z)
 		self.vel_pub.publish(vel)
 		# check if the process is done
 		if(not (vel.linear.x + vel.linear.y + vel.angular.z)):
